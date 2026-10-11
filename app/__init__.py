@@ -76,7 +76,7 @@ def create_app(config_name: str = None):
         return db.session.get(User, int(user_id))
 
     # --- Blueprints ---
-    from app.routes import main_bp, auth_bp, exchange_bp, admin_bp, logistics_bp, compliance_bp, kyc_bp
+    from app.routes import main_bp, auth_bp, exchange_bp, admin_bp, logistics_bp, compliance_bp, kyc_bp, ticker_bp, alerts_bp
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(exchange_bp, url_prefix='/exchange')
@@ -84,6 +84,8 @@ def create_app(config_name: str = None):
     app.register_blueprint(logistics_bp, url_prefix='/logistics')
     app.register_blueprint(compliance_bp, url_prefix='/compliance')
     app.register_blueprint(kyc_bp, url_prefix='/kyc')
+    app.register_blueprint(ticker_bp)
+    app.register_blueprint(alerts_bp)
 
     # --- Enforce 2FA after login ---
     @app.before_request

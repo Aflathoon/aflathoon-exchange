@@ -1,0 +1,160 @@
+<!-- ============================================================
+     Live sidebar — crypto prices + market + news
+     Loaded via fetch() so it never slows the initial page render.
+     ============================================================ -->
+<div id="live-sidebar">
+  <div class="afl-card" id="ticker-prices">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
+      <div class="afl-k">Live Crypto</div>
+      <span id="prices-source" class="afl-pill muted" style="font-size:.68rem">loading…</span>
+    </div>
+    <div id="prices-list">
+      <div style="color:var(--muted);font-size:.85rem;padding:.6rem 0">Fetching prices…</div>
+    </div>
+  </div>
+
+  <div class="afl-card" id="market-global" style="display:none">
+    <div class="afl-k" style="margin-bottom:.6rem">Market Overview</div>
+    <div id="global-stats"></div>
+  </div>
+
+  <div class="afl-card" id="trending-card" style="display:none">
+    <div class="afl-k" style="margin-bottom:.6rem">🔥 Trending</div>
+    <div id="trending-list"></div>
+  </div>
+
+  <div class="afl-card" id="news-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+      <div class="afl-k">Crypto News</div>
+      <span id="news-source" class="afl-pill muted" style="font-size:.68rem">—</span>
+    </div>
+    <div id="news-list">
+      <div style="color:var(--muted);font-size:.85rem;padding:.6rem 0">Loading…</div>
+    </div>
+    <div id="news-empty" style="display:none;color:var(--muted);font-size:.8rem;padding:.6rem 0">
+      No headlines. Set <code>NEWSAPI_KEY</code> in <code>.env</code> to enable vetted news.<br>
+      <span style="color:var(--accent)">Get a free key: newsapi.org</span>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  function fmtUSD(n) {
+    if (n === null || n === undefined) return '—';
+    if (n >= 1000) return '$' + Number(n).toLocaleString(undefined, {maximumFractionDigits: 0});
+    if (n >= 1)    return '$' + Number(n).toFixed(2);
+    return '$' + Number(n).toFixed(4);
+  }
+  function fmtCompact(n) {
+    if (!n) return '—';
+    const units = [[1e12,'T'],[1e9,'B'],[1e6,'M']];
+    for (const [div, suf] of units) if (n >= div) return '$' + (n/div).toFixed(1) + suf;
+    return '$' + Number(n).toLocaleString();
+  }
+  function arrow(change) {
+    if (change === null || change === undefined) return '';
+    const up = change >= 0;
+    return `<span style="color:${up ? 'var(--green)' : 'var(--red)'};font-weight:600;font-size:.78rem">${up ? '▲' : '▼'} ${Math.abs(change).toFixed(2)}%</span>`;
+  }
+  function esc(s) { return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  // ------------------------------------------------------------------ prices
+  async function loadPrices() {
+    try {
+      const r = await fetch('/api/prices');
+      const j = await r.json();
+      const src = document.getElementById('prices-source');
+      if (src) {
+        src.textContent = (j.source || 'fallback').toUpperCase() +
+          (j.last_ok_seconds_ago !== null && j.last_ok_seconds_ago !== undefined ? ' · ' + j.last_ok_seconds_ago + 's' : '');
+        src.className = 'afl-pill ' + (j.source === 'live' ? '' : 'muted');
+      }
+      const list = document.getElementById('prices-list');
+      const entries = Object.entries(j.prices || {});
+      if (!entries.length) {
+        list.innerHTML = '<div style="color:var(--muted);font-size:.85rem">No prices available.</div>';
+        return;
+      }
+      list.innerHTML = entries.map(([sym, p]) => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:.45rem 0;border-bottom:1px solid var(--border-2)">
+          <div>
+            <div style="font-weight:600;color:var(--text);font-size:.88rem">${sym}</div>
+            <div style="font-size:.72rem;color:var(--muted)">USD</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-weight:600;color:var(--text);font-size:.88rem">${fmtUSD(p.price)}</div>
+            <div>${arrow(p.change_24h)}</div>
+          </div>
+        </div>
+      `).join('');
+    } catch (e) {
+      console.warn('[ticker] prices fetch failed', e);
+    }
+  }
+
+  // ------------------------------------------------------------------ news
+  async function loadNews() {
+    try {
+      const r = await fetch('/api/news');
+      const j = await r.json();
+      const srcEl = document.getElementById('news-source');
+      if (srcEl) {
+        srcEl.textContent = (j.source || '—').toUpperCase() +
+          (j.last_ok_seconds_ago !== null && j.last_ok_seconds_ago !== undefined ? ' · ' + j.last_ok_seconds_ago + 's' : '');
+      }
+
+      // Global market
+      const g = j.global || {};
+      if (g.market_cap_usd || g.btc_dominance) {
+        document.getElementById('market-global').style.display = 'block';
+        document.getElementById('global-stats').innerHTML = `
+          <div style="display:flex;justify-content:space-between;padding:.3rem 0"><span style="color:var(--muted);font-size:.8rem">Market cap</span><span style="font-size:.85rem;font-weight:600">${fmtCompact(g.market_cap_usd)}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:.3rem 0"><span style="color:var(--muted);font-size:.8rem">24h volume</span><span style="font-size:.85rem;font-weight:600">${fmtCompact(g.volume_24h_usd)}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:.3rem 0"><span style="color:var(--muted);font-size:.8rem">BTC dominance</span><span style="font-size:.85rem;font-weight:600">${g.btc_dominance ? g.btc_dominance.toFixed(1) + '%' : '—'}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:.3rem 0"><span style="color:var(--muted);font-size:.8rem">24h change</span><span>${arrow(g.market_cap_change_24h)}</span></div>
+        `;
+      }
+
+      // Trending
+      const trend = j.trending || [];
+      if (trend.length) {
+        document.getElementById('trending-card').style.display = 'block';
+        document.getElementById('trending-list').innerHTML = trend.slice(0, 5).map(t => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:.35rem 0;font-size:.82rem">
+            <span style="color:var(--text);font-weight:600">${esc(t.symbol)}</span>
+            <span style="color:var(--muted);font-size:.75rem">${esc(t.name)}</span>
+            ${t.rank ? `<span style="color:var(--muted);font-size:.72rem">#${t.rank}</span>` : ''}
+          </div>
+        `).join('');
+      }
+
+      // News articles
+      const items = j.news || [];
+      const listEl = document.getElementById('news-list');
+      const emptyEl = document.getElementById('news-empty');
+      if (!items.length) {
+        listEl.innerHTML = '';
+        emptyEl.style.display = 'block';
+        return;
+      }
+      listEl.innerHTML = items.slice(0, 6).map(a => `
+        <a href="${esc(a.url)}" target="_blank" rel="noopener" style="display:block;padding:.5rem 0;border-bottom:1px solid var(--border-2);text-decoration:none">
+          <div style="color:var(--text);font-size:.83rem;font-weight:500;line-height:1.35">${esc(a.title)}</div>
+          <div style="color:var(--muted);font-size:.7rem;margin-top:.2rem">${esc(a.source || '')} · ${a.published_at ? new Date(a.published_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : ''}</div>
+        </a>
+      `).join('');
+    } catch (e) {
+      console.warn('[news] fetch failed', e);
+    }
+  }
+
+  // ------------------------------------------------------------------ boot
+  loadPrices();
+  loadNews();
+  setInterval(loadPrices, 90000);   // match backend refresh
+  setInterval(loadNews, 300000);
+})();
+</script>

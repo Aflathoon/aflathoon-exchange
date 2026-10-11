@@ -472,3 +472,23 @@ button.pw-toggle, .pw-wrap button.pw-toggle, .auth-card button.pw-toggle {
 }
 .pw-toggle:focus { outline: none; }
 .pw-toggle svg { display: block; pointer-events: none; }
+
+
+/* ---------- Live sidebar (right column) ---------- */
+.afl-with-live {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 1rem;
+  align-items: start;
+}
+@media (max-width: 1200px) {
+  .afl-with-live { grid-template-columns: 1fr; }
+  .afl-livecol { display: none; }
+}
+.afl-livecol {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  position: sticky;
+  top: 1rem;
+}

@@ -80,8 +80,63 @@
     </div>
   </header>
 
+  <div id="alert-banner-host"></div>
+
+  <script>
+  (function(){
+    'use strict';
+    async function loadAlerts() {
+      var host = document.getElementById('alert-banner-host');
+      if (!host) return;
+      try {
+        var r = await fetch('/api/alerts/active');
+        var j = await r.json();
+        var items = j.alerts || [];
+        if (!items.length) { host.innerHTML = ''; return; }
+        host.innerHTML = items.map(function(a){
+          var bg = a.severity === 'critical' ? 'rgba(239,68,68,.12)' :
+                   a.severity === 'warning'  ? 'rgba(245,158,11,.12)' :
+                                               'rgba(111,140,255,.12)';
+          var br = a.severity === 'critical' ? 'var(--red)' :
+                   a.severity === 'warning'  ? 'var(--amber)' :
+                                               'var(--accent)';
+          var label = a.severity === 'critical' ? '🚨 BREAKING' :
+                      a.severity === 'warning'  ? '⚠' : 'ℹ';
+          return '<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:.7rem 1rem;margin-bottom:.6rem;background:' + bg + ';border-left:4px solid ' + br + ';border-radius:8px">' +
+            '<div style="flex:1;min-width:0">' +
+              '<div style="font-weight:700;color:var(--text);font-size:.9rem">' + label + ' ' + escapeHtml(a.title) + '</div>' +
+              (a.body ? '<div style="color:var(--text-2);font-size:.82rem;margin-top:.2rem">' + escapeHtml(a.body) + '</div>' : '') +
+            '</div>' +
+            '<div style="display:flex;gap:.5rem;flex-shrink:0">' +
+              (a.link_url ? '<a href="' + escapeHtml(a.link_url) + '" class="afl-btn" style="text-decoration:none;padding:.4rem .8rem;font-size:.8rem">' + escapeHtml(a.link_label || 'Open') + '</a>' : '') +
+              '<button class="afl-btn secondary" style="padding:.4rem .8rem;font-size:.8rem" onclick="dismissAlert(' + a.id + ', this)">Dismiss</button>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+      } catch(e) {}
+    }
+    function escapeHtml(s) { return (s||'').replace(/[&<>"']/g, function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+    window.dismissAlert = async function(id, btn) {
+      btn.disabled = true;
+      try {
+        await fetch('/api/alerts/' + id + '/dismiss', {method: 'POST'});
+        loadAlerts();
+      } catch(e) { btn.disabled = false; }
+    };
+    loadAlerts();
+    setInterval(loadAlerts, 60000);
+  })();
+  </script>
+
   <!-- ============================ PAGE BODY ============================ -->
-  {% block content %}{% endblock %}
+  <div class="afl-with-live">
+    <div>
+      {% block content %}{% endblock %}
+    </div>
+    <aside class="afl-livecol">
+      {% include "partials/_live_sidebar.html" %}
+    </aside>
+  </div>
 
 </main>
 
