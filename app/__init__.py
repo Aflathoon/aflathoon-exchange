@@ -106,6 +106,19 @@ def create_app(config_name: str = None):
         # Must verify 2FA
         return redirect(url_for('auth.two_factor_verify', next=path))
 
+    # --- CSRF protection ---
+    from app.services import csrf
+    from app.services.csrf import validate as csrf_validate
+
+    @app.before_request
+    def csrf_inject():
+        return csrf_validate()
+
+    @app.context_processor
+    def csrf_inject_context():
+        from app.services.csrf import inject_template_helper
+        return inject_template_helper()
+
     # --- Create tables ---
     with app.app_context():
         # Import models so they register with SQLAlchemy metadata

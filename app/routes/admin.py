@@ -7,6 +7,7 @@ from flask_login import login_required, current_user
 from sqlalchemy import func
 
 from app import db
+from app.services import audit
 from app.models.user import User
 from app.models.transaction import Transaction, TransactionStatus
 from app.models.license import License
@@ -163,8 +164,12 @@ def toggle_admin(uid):
     if u.id == current_user.id:
         flash("You can't demote yourself")
         return redirect(url_for('admin.users_page'))
+    before = {'is_admin': u.is_admin}
     u.is_admin = not u.is_admin
     db.session.commit()
+    audit.log('user.toggle_admin', entity=u,
+              summary=f"{u.username} admin set to {u.is_admin}",
+              before=before, after={'is_admin': u.is_admin})
     flash(f"{u.username}: admin={'ON' if u.is_admin else 'OFF'}")
     return redirect(url_for('admin.users_page'))
 
@@ -176,8 +181,12 @@ def toggle_active(uid):
     if u.id == current_user.id:
         flash("You can't deactivate yourself")
         return redirect(url_for('admin.users_page'))
+    before = {'is_active': u.is_active}
     u.is_active = not u.is_active
     db.session.commit()
+    audit.log('user.toggle_active', entity=u,
+              summary=f"{u.username} active set to {u.is_active}",
+              before=before, after={'is_active': u.is_active})
     flash(f"{u.username}: active={'ON' if u.is_active else 'OFF'}")
     return redirect(url_for('admin.users_page'))
 
@@ -192,6 +201,8 @@ def reset_password(uid):
     else:
         u.set_password(new_pw)
         db.session.commit()
+        audit.log('user.reset_password', entity=u,
+                  summary=f"Password reset for {u.username} by admin")
         flash(f"Password reset for {u.username}")
     return redirect(url_for('admin.users_page'))
 
@@ -405,9 +416,13 @@ def admin_verify_email(uid):
     from datetime import datetime
 
     u = User.query.get_or_404(uid)
+    before = {'email_verified': u.email_verified}
     u.email_verified = True
     u.email_verified_at = datetime.utcnow()
     db.session.commit()
+    audit.log('user.verify_email', entity=u,
+              summary=f"Manually verified email for {u.username}",
+              before=before, after={'email_verified': True})
     flash(f"Email manually verified for {u.username}.")
     return redirect(url_for('admin.users_page'))
 
@@ -440,6 +455,9 @@ def admin_unverify_email(uid):
     u.email_verified = False
     u.email_verified_at = None
     db.session.commit()
+    audit.log('user.unverify_email', entity=u,
+              summary=f"Unverified email for {u.username}",
+              after={'email_verified': False})
     flash(f"Email unverified for {u.username}.")
     return redirect(url_for('admin.users_page'))
 
@@ -461,3 +479,63 @@ def admin_send_verification_all():
             pass
     flash(f"Sent verification emails to {sent} of {len(unverified)} unverified users.")
     return redirect(url_for('admin.users_page'))
+
+
+# =============================================================================
+# Audit log viewer
+# =============================================================================
+@admin_bp.route('/audit')
+@admin_required
+def audit_log():
+    from app.models.audit_log import AuditLog
+    from app.models.user import User
+
+    page = max(1, int(request.args.get('page', '1')))
+    per_page = min(200, max(20, int(request.args.get('per_page', '50'))))
+    action_filter = request.args.get('action', '').strip()
+    actor_filter = request.args.get('actor', '').strip()
+
+    q = AuditLog.query
+    if action_filter:
+        q = q.filter(AuditLog.action.like(f"{action_filter}%"))
+    if actor_filter:
+        q = q.filter(AuditLog.actor_username == actor_filter)
+
+    q = q.order_by(AuditLog.created_at.desc())
+    total = q.count()
+    rows = q.offset((page - 1) * per_page).limit(per_page).all()
+
+    # Distinct actions for filter dropdown
+    actions = [r[0] for r in db.session.query(AuditLog.action).distinct().all()]
+    actors = [r[0] for r in db.session.query(AuditLog.actor_username).distinct().all() if r[0]]
+
+    return render_template('admin/audit.html',
+        rows=rows, page=page, per_page=per_page, total=total,
+        pages=(total + per_page - 1) // per_page,
+        action_filter=action_filter, actor_filter=actor_filter,
+        actions=sorted(actions), actors=sorted(actors),
+    )
+
+
+# =============================================================================
+# AI Assistant
+# =============================================================================
+@admin_bp.route('/assistant')
+@admin_required
+def assistant_page():
+    from app.services import assistant
+    findings = assistant.scan_all()
+    s = assistant.summary(findings)
+    return render_template('admin/assistant.html', findings=findings, summary=s)
+
+
+@admin_bp.route('/api/assistant/scan')
+@admin_required
+def assistant_scan():
+    from app.services import assistant
+    findings = assistant.scan_all()
+    s = assistant.summary(findings)
+    return jsonify({
+        'summary': s,
+        'findings': [f.to_dict() for f in findings],
+    })

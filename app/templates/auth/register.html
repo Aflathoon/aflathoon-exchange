@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en" data-theme="dark">
 <head>
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Register — Aflathoon</title>
@@ -114,5 +115,6 @@ function pickType(t){
 })();
 </script>
 <script src="/static/js/reveal-password.js" defer></script>
+<script src="/static/js/csrf.js" defer></script>
 </body>
 </html>

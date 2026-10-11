@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Audit Log — Aflathoon{% endblock %}
+{% block search_placeholder %}Search audit log…{% endblock %}
+
+{% block content %}
+<h1 class="afl-page-title">Audit Log</h1>
+
+<div class="tabs" style="margin-bottom:1rem">
+  <a href="/admin/">Overview</a>
+  <a href="/admin/blotter">Blotter</a>
+  <a href="/admin/positions">Positions</a>
+  <a href="/admin/users">Users</a>
+  <a href="/admin/companies">Companies</a>
+  <a href="/admin/audit">Audit</a>
+  <a href="/admin/assistant">AI Assistant</a>
+</div>
+
+<div class="afl-card">
+  <form method="get" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.8rem">
+    <select name="action" class="afl-in">
+      <option value="">— any action —</option>
+      {% for a in actions %}
+        <option value="{{ a }}" {% if action_filter == a %}selected{% endif %}>{{ a }}</option>
+      {% endfor %}
+    </select>
+    <select name="actor" class="afl-in">
+      <option value="">— any actor —</option>
+      {% for a in actors %}
+        <option value="{{ a }}" {% if actor_filter == a %}selected{% endif %}>{{ a }}</option>
+      {% endfor %}
+    </select>
+    <input name="per_page" type="number" value="{{ per_page }}" class="afl-in" style="width:80px">
+    <button class="afl-btn">Filter</button>
+    <a href="/admin/audit" class="afl-btn secondary" style="text-decoration:none;padding:.6rem 1rem">Clear</a>
+  </form>
+
+  <p style="color:var(--muted);font-size:.85rem">{{ total }} entries · page {{ page }} of {{ pages or 1 }}</p>
+
+  <table class="afl-table">
+    <tr>
+      <th>When</th>
+      <th>Actor</th>
+      <th>Action</th>
+      <th>Entity</th>
+      <th>Summary</th>
+      <th>IP</th>
+    </tr>
+    {% for r in rows %}
+    <tr>
+      <td style="white-space:nowrap">{{ r.created_at.strftime('%Y-%m-%d %H:%M:%S') if r.created_at else '—' }}</td>
+      <td><strong>{{ r.actor_username or '—' }}</strong></td>
+      <td><code style="color:var(--accent);font-size:.78rem">{{ r.action }}</code></td>
+      <td>
+        {% if r.entity_type %}
+          {{ r.entity_type }}{% if r.entity_id %}#{{ r.entity_id }}{% endif %}
+        {% else %}—{% endif %}
+      </td>
+      <td style="color:var(--text-2)">{{ r.summary or '—' }}</td>
+      <td style="color:var(--muted);font-size:.78rem">{{ r.ip_address or '—' }}</td>
+    </tr>
+    {% endfor %}
+    {% if not rows %}
+    <tr><td colspan="6" class="afl-empty">No audit entries</td></tr>
+    {% endif %}
+  </table>
+
+  {% if pages > 1 %}
+  <div style="display:flex;gap:.4rem;margin:1rem 0;flex-wrap:wrap">
+    {% if page > 1 %}<a class="afl-pill" href="?page={{ page-1 }}&per_page={{ per_page }}&action={{ action_filter }}&actor={{ actor_filter }}">← prev</a>{% endif %}
+    {% for p in range(1, pages + 1) %}
+      {% if p == page %}
+        <a class="afl-pill" style="background:var(--accent);color:#fff">{{ p }}</a>
+      {% elif p <= 3 or p >= pages - 2 or (p >= page - 2 and p <= page + 2) %}
+        <a class="afl-pill" href="?page={{ p }}&per_page={{ per_page }}&action={{ action_filter }}&actor={{ actor_filter }}">{{ p }}</a>
+      {% endif %}
+    {% endfor %}
+    {% if page < pages %}<a class="afl-pill" href="?page={{ page+1 }}&per_page={{ per_page }}&action={{ action_filter }}&actor={{ actor_filter }}">next →</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

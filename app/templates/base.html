@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en" data-theme="dark">
 <head>
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Aflathoon Exchange{% endblock %}</title>
@@ -37,6 +38,8 @@
     <a href="/admin/positions"   class="{{ 'active' if path.startswith('/admin/positions') }}"> <span class="ico">↗</span> Positions</a>
     <a href="/admin/users"       class="{{ 'active' if path.startswith('/admin/users') }}">     <span class="ico">👥</span> Users</a>
     <a href="/admin/companies"     class="{{ 'active' if path.startswith('/admin/companies') }}">   <span class="ico">🏢</span> Companies</a>
+    <a href="/admin/audit" class="{{ 'active' if path.startswith('/admin/audit') }}"><span class="ico">📋</span> Audit</a>
+    <a href="/admin/assistant" class="{{ 'active' if path.startswith('/admin/assistant') }}"><span class="ico">🤖</span> Assistant</a>
     {% endif %}
     <hr>
     {% if current_user.is_authenticated %}
@@ -143,5 +146,6 @@
 })();
 </script>
 <script src="/static/js/reveal-password.js" defer></script>
+<script src="/static/js/csrf.js" defer></script>
 {% block scripts %}{% endblock %}
 </body></html>

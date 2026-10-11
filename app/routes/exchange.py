@@ -6,6 +6,7 @@ from app.services.margin import calculate_margin
 from app.services.license_guard import missing_licenses
 from app.services.booking import book_trade
 from app.models.transaction import Transaction, TransactionStatus
+from app.services.rate_limit import limit
 
 exchange_bp = Blueprint('exchange', __name__)
 
@@ -63,6 +64,7 @@ def convert():
 
 @exchange_bp.route('/book', methods=['POST'])
 @login_required
+@limit('book', 60, 60, json_response=True)
 def book():
     """
     Persist a quote as a Transaction. Default is STAGED.

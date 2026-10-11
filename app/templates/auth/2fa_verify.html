@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en" data-theme="dark">
 <head>
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Verify 2FA — Aflathoon</title>
@@ -42,4 +43,5 @@ body.afl-auth{display:flex;align-items:center;justify-content:center;min-height:
   <p class="hint">Lost your phone? Enter one of your backup codes above.<br>
   <a href="/auth/logout">Cancel and log out</a></p>
 </form>
+<script src="/static/js/csrf.js" defer></script>
 </body></html>

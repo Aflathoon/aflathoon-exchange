@@ -1,0 +1,54 @@
+{% if current_user.is_authenticated and current_user.is_admin %}
+<div id="assistant-panel" class="afl-card" style="margin-bottom:1rem">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
+    <div>
+      <div class="afl-k">AI Assistant</div>
+      <div id="assist-summary" style="color:var(--text-2);font-size:.85rem">scanning…</div>
+    </div>
+    <a href="/admin/assistant" class="afl-btn secondary" style="padding:.3rem .7rem;font-size:.78rem;text-decoration:none">View all →</a>
+  </div>
+  <div id="assist-list" style="display:flex;flex-direction:column;gap:.4rem"></div>
+</div>
+
+<script>
+(function(){
+  async function scan() {
+    try {
+      const r = await fetch('/admin/api/assistant/scan');
+      if (!r.ok) return;
+      const j = await r.json();
+      const s = j.summary || {};
+      const sum = document.getElementById('assist-summary');
+      if (sum) sum.textContent = `${s.critical||0} critical · ${s.warning||0} warnings · ${s.info||0} info`;
+
+      const list = document.getElementById('assist-list');
+      if (!list) return;
+      const top = (j.findings || []).slice(0, 5);
+      if (!top.length) {
+        list.innerHTML = '<div style="color:var(--green-fg);font-size:.85rem;padding:.3rem 0">✓ All clear</div>';
+        return;
+      }
+      list.innerHTML = top.map(f => `
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;padding:.5rem .6rem;background:var(--surface-2);border-radius:8px;border-left:3px solid ${f.severity==='critical'?'var(--red)':f.severity==='warning'?'var(--amber)':'var(--accent)'}">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:.82rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              ${f.severity==='critical'?'🔴':f.severity==='warning'?'🟠':'🔵'} ${escapeHtml(f.title)}
+            </div>
+            <div style="font-size:.72rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(f.detail||'')}</div>
+          </div>
+          ${f.action_url ? `<a href="${f.action_url}" style="color:var(--accent);text-decoration:none;font-size:.75rem;white-space:nowrap">Open →</a>` : ''}
+        </div>
+      `).join('');
+    } catch(e) {}
+  }
+  function escapeHtml(s) {
+    return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  // Only run on admin pages
+  if (document.querySelector('.afl-admin')) {
+    scan();
+    setInterval(scan, 60000);
+  }
+})();
+</script>
+{% endif %}

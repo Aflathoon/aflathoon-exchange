@@ -5,6 +5,7 @@ from datetime import datetime, date
 from app import db
 from app.models.user import User
 from app.models.company import Company
+from app.services.rate_limit import limit
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -19,6 +20,7 @@ def _parse_date(v):
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
+@limit('login', 10, 60, by='form:username')
 def login():
     next_url = request.args.get('next') or request.form.get('next') or '/'
 
@@ -35,6 +37,8 @@ def login():
             u.last_login = datetime.utcnow()
             db.session.commit()
             login_user(u, remember=True)
+            from app.services.csrf import rotate_token as _rot
+            _rot()
             print(f"[LOGIN] OK -> redirect {next_url!r}", flush=True)
             return redirect(next_url)
 
@@ -45,6 +49,7 @@ def login():
 
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
+@limit('register', 5, 3600, by='ip')
 def register():
     if request.method == 'POST':
         username = (request.form.get('username') or '').strip()
@@ -107,6 +112,8 @@ def register():
 @login_required
 def logout():
     logout_user()
+    from app.services.csrf import rotate_token as _rot
+    _rot()
     return redirect(url_for('main.index'))
 
 
@@ -382,6 +389,7 @@ def verify_email(token):
 
 
 @auth_bp.route('/resend-verification', methods=['GET', 'POST'])
+@limit('resend', 3, 3600, by='form:email')
 def resend_verification():
     if request.method == 'POST':
         email = (request.form.get('email') or '').strip().lower()
@@ -394,6 +402,7 @@ def resend_verification():
 
 
 @auth_bp.route('/forgot-password', methods=['GET', 'POST'])
+@limit('forgot', 3, 3600, by='form:email')
 def forgot_password():
     if request.method == 'POST':
         email = (request.form.get('email') or '').strip().lower()

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}AI Assistant — Aflathoon{% endblock %}
+{% block search_placeholder %}Assistant findings…{% endblock %}
+
+{% block content %}
+<h1 class="afl-page-title">AI Assistant</h1>
+
+<div class="tabs" style="margin-bottom:1rem">
+  <a href="/admin/">Overview</a>
+  <a href="/admin/blotter">Blotter</a>
+  <a href="/admin/positions">Positions</a>
+  <a href="/admin/users">Users</a>
+  <a href="/admin/companies">Companies</a>
+  <a href="/admin/audit">Audit</a>
+  <a class="active" href="/admin/assistant">Assistant</a>
+</div>
+
+<div class="afl-row afl-row-3" style="margin-bottom:1rem">
+  <div class="afl-card">
+    <div class="afl-k">Critical</div>
+    <div class="afl-v big" style="color:var(--red)">{{ summary.critical }}</div>
+  </div>
+  <div class="afl-card">
+    <div class="afl-k">Warnings</div>
+    <div class="afl-v big" style="color:var(--amber)">{{ summary.warning }}</div>
+  </div>
+  <div class="afl-card">
+    <div class="afl-k">Info</div>
+    <div class="afl-v big" style="color:var(--accent)">{{ summary.info }}</div>
+  </div>
+</div>
+
+<div class="afl-card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem">
+    <h3 class="afl-h3" style="margin:0">Findings ({{ summary.total }})</h3>
+    <button class="afl-btn secondary" onclick="location.reload()">↻ Rescan</button>
+  </div>
+
+  {% if findings %}
+    <div style="display:flex;flex-direction:column;gap:.6rem">
+    {% for f in findings %}
+      <div class="afl-card" style="margin:0;border-left:4px solid
+        {% if f.severity == 'critical' %}var(--red){% elif f.severity == 'warning' %}var(--amber){% else %}var(--accent){% endif %};
+        padding:.9rem 1.1rem">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap">
+          <div style="flex:1;min-width:200px">
+            <div style="font-weight:600;color:var(--text)">
+              {% if f.severity == 'critical' %}🔴{% elif f.severity == 'warning' %}🟠{% else %}🔵{% endif %}
+              {{ f.title }}
+            </div>
+            <div style="color:var(--text-2);font-size:.87rem;margin-top:.3rem">{{ f.detail }}</div>
+          </div>
+          {% if f.action_url %}
+            <a href="{{ f.action_url }}" class="afl-btn" style="text-decoration:none;padding:.5rem 1rem;white-space:nowrap">{{ f.action_label or 'Open' }} →</a>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+    </div>
+  {% else %}
+    <p style="color:var(--green);text-align:center;padding:2rem">✓ No findings — everything looks healthy.</p>
+  {% endif %}
+</div>
+{% endblock %}
