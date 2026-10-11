@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Set Up 2FA — Aflathoon{% endblock %}
+{% block search_placeholder %}Two-factor authentication{% endblock %}
+
+{% block content %}
+<h1 class="afl-page-title">Set Up Two-Factor Authentication</h1>
+
+<div class="afl-card" style="max-width:620px">
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}{% for m in messages %}
+      <div style="padding:.6rem .9rem;border-radius:8px;margin-bottom:.8rem;background:rgba(239,68,68,.12);color:var(--red-fg);border:1px solid rgba(239,68,68,.25)">{{ m }}</div>
+    {% endfor %}{% endif %}
+  {% endwith %}
+
+  {% if step == 'scan' %}
+    <h3 class="afl-h3">Step 1 — Scan the QR code</h3>
+    <p style="color:var(--text-2);line-height:1.6">
+      Open your authenticator app (Google Authenticator, Authy, 1Password, Bitwarden, Aegis — any TOTP app works).
+      Tap <strong>Add account</strong> → <strong>Scan QR code</strong>, then point at the image below.
+    </p>
+
+    <div style="text-align:center;background:#fff;padding:1rem;border-radius:12px;display:inline-block;margin:.5rem 0">
+      <img src="{{ qr }}" alt="2FA QR code" style="width:220px;height:220px;display:block">
+    </div>
+
+    <details style="margin-top:1rem">
+      <summary style="cursor:pointer;color:var(--accent);font-weight:600">Can't scan? Enter this code manually</summary>
+      <div style="margin-top:.6rem;padding:.8rem;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;font-family:monospace;font-size:1rem;letter-spacing:.15em;color:var(--text);word-break:break-all">
+        {{ secret }}
+      </div>
+    </details>
+
+    <h3 class="afl-h3" style="margin-top:1.4rem">Step 2 — Enter the 6-digit code</h3>
+    <form method="post">
+      <input name="code" placeholder="123 456" inputmode="numeric" pattern="[0-9 ]*" maxlength="7"
+             autocomplete="one-time-code" autofocus class="afl-in" style="width:200px;font-size:1.4rem;letter-spacing:.3em;text-align:center">
+      <button class="afl-btn" style="margin-left:.5rem">Verify &amp; activate</button>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Backup Codes — Aflathoon{% endblock %}
+{% block search_placeholder %}Backup codes{% endblock %}
+
+{% block content %}
+<h1 class="afl-page-title">Save your backup codes</h1>
+
+<div class="afl-card" style="max-width:620px;border-left:4px solid var(--amber)">
+  <h3 class="afl-h3">⚠ One-time view</h3>
+  <p style="color:var(--text-2);line-height:1.6">
+    Store these somewhere safe. Each code works <strong>once</strong>, in place of a 6-digit TOTP code.
+    If you lose your phone and your backup codes, you'll lose access to your account.
+  </p>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin:1.2rem 0;font-family:monospace;font-size:1.05rem">
+    {% for c in codes %}
+    <div style="padding:.6rem .8rem;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;text-align:center;color:var(--text);letter-spacing:.15em">
+      {{ c }}
+    </div>
+    {% endfor %}
+  </div>
+
+  <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+    <button type="button" class="afl-btn secondary" onclick="copyAll()">📋 Copy all</button>
+    <button type="button" class="afl-btn secondary" onclick="printCodes()">🖨 Print</button>
+    <a href="/auth/2fa/manage" class="afl-btn" style="text-decoration:none">I've saved them →</a>
+  </div>
+
+  <p style="color:var(--muted);font-size:.8rem;margin-top:1rem">
+    This page won't show again. If you lose the codes, use
+    <strong>Regenerate backup codes</strong> from the 2FA management page.
+  </p>
+</div>
+
+<script>
+function copyAll() {
+  const codes = {{ codes | tojson }};
+  navigator.clipboard.writeText(codes.join('\n')).then(() => alert('Copied ' + codes.length + ' codes to clipboard.'));
+}
+function printCodes() {
+  const w = window.open('', '', 'width=600,height=800');
+  const codes = {{ codes | tojson }};
+  w.document.write('<h2>Aflathoon Exchange — Backup Codes</h2><pre style="font-size:18px;letter-spacing:3px">' + codes.join('\n') + '</pre>');
+  w.document.close();
+  w.print();
+}
+</script>
+{% endblock %}

@@ -33,6 +33,12 @@ class User(UserMixin, db.Model):
     kyc_tier = db.Column(db.Integer, default=0)
     lei_code = db.Column(db.String(20))
 
+    # Two-factor authentication
+    two_factor_secret = db.Column(db.String(64))              # TOTP secret (base32)
+    two_factor_enabled = db.Column(db.Boolean, default=False)
+    two_factor_backup_codes = db.Column(db.Text)             # JSON list of hashed codes
+    two_factor_confirmed_at = db.Column(db.DateTime)
+
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime)

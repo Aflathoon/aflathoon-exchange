@@ -169,3 +169,160 @@ def profile():
 
     company = Company.query.get(current_user.company_id) if current_user.company_id else None
     return render_template('auth/profile.html', user=current_user, company=company)
+
+
+# =============================================================================
+# Two-factor authentication
+# =============================================================================
+from app.services import two_factor as tf
+
+
+def _require_2fa_or_redirect():
+    """
+    If the current user has 2FA enabled but hasn't verified this session,
+    redirect to /auth/2fa/verify with the original URL as `next`.
+    Returns None if OK, or a Flask redirect response if the user must verify.
+    """
+    from flask import session, request, redirect, url_for
+    if not current_user.is_authenticated:
+        return None
+    if not getattr(current_user, 'two_factor_enabled', False):
+        return None
+    if session.get('two_factor_verified') is True:
+        return None
+    return redirect(url_for('auth.two_factor_verify', next=request.path))
+
+
+@auth_bp.route('/2fa/setup', methods=['GET', 'POST'])
+@login_required
+def two_factor_setup():
+    from flask import session
+
+    # Only allow setup when 2FA is currently OFF
+    if current_user.two_factor_enabled:
+        flash('2FA is already enabled. Disable it first to reconfigure.')
+        return redirect(url_for('auth.two_factor_manage'))
+
+    # Generate (or reuse) a pending secret stored in session
+    if 'pending_2fa_secret' not in session:
+        session['pending_2fa_secret'] = tf.generate_secret()
+    secret = session['pending_2fa_secret']
+
+    uri = tf.provisioning_uri(secret, current_user.username)
+    qr = tf.qr_png_data_uri(uri)
+
+    if request.method == 'POST':
+        code = (request.form.get('code') or '').strip()
+        if not tf.verify_code(secret, code):
+            flash("Invalid code. Make sure your phone's clock is accurate, then try again.")
+            return render_template('auth/2fa_setup.html',
+                                   secret=secret, uri=uri, qr=qr, step='verify')
+
+        # Generate and store backup codes
+        codes = tf.generate_backup_codes(10)
+        current_user.two_factor_secret = secret
+        current_user.two_factor_enabled = True
+        current_user.two_factor_backup_codes = tf.hash_backup_codes(codes)
+        current_user.two_factor_confirmed_at = datetime.utcnow()
+        db.session.commit()
+
+        # Mark this session as 2FA-verified
+        session['two_factor_verified'] = True
+        session.pop('pending_2fa_secret', None)
+
+        # Show backup codes once
+        return render_template('auth/2fa_backup_codes.html', codes=codes)
+
+    return render_template('auth/2fa_setup.html',
+                           secret=secret, uri=uri, qr=qr, step='scan')
+
+
+@auth_bp.route('/2fa/verify', methods=['GET', 'POST'])
+def two_factor_verify():
+    from flask import session
+
+    next_url = request.args.get('next') or request.form.get('next') or '/'
+
+    # Only meaningful if user is logged in but unverified
+    if not current_user.is_authenticated:
+        return redirect(url_for('auth.login', next=next_url))
+    if not current_user.two_factor_enabled:
+        session['two_factor_verified'] = True
+        return redirect(next_url)
+    if session.get('two_factor_verified') is True:
+        return redirect(next_url)
+
+    if request.method == 'POST':
+        code = (request.form.get('code') or '').strip()
+
+        # Try TOTP first
+        if tf.verify_code(current_user.two_factor_secret, code):
+            session['two_factor_verified'] = True
+            return redirect(next_url)
+
+        # Try backup code
+        ok, new_json = tf.consume_backup_code(current_user.two_factor_backup_codes, code)
+        if ok:
+            current_user.two_factor_backup_codes = new_json
+            db.session.commit()
+            session['two_factor_verified'] = True
+            remaining = tf.remaining_backup_codes(new_json)
+            flash(f'Backup code accepted. {remaining} remaining.')
+            return redirect(next_url)
+
+        flash('Invalid code.')
+
+    return render_template('auth/2fa_verify.html', next=next_url)
+
+
+@auth_bp.route('/2fa/manage')
+@login_required
+def two_factor_manage():
+    remaining = tf.remaining_backup_codes(current_user.two_factor_backup_codes or '')
+    return render_template('auth/2fa_manage.html', remaining=remaining)
+
+
+@auth_bp.route('/2fa/disable', methods=['POST'])
+@login_required
+def two_factor_disable():
+    from flask import session
+
+    password = request.form.get('password') or ''
+    if not current_user.check_password(password):
+        flash('Password incorrect. 2FA not disabled.')
+        return redirect(url_for('auth.two_factor_manage'))
+
+    current_user.two_factor_secret = None
+    current_user.two_factor_enabled = False
+    current_user.two_factor_backup_codes = None
+    current_user.two_factor_confirmed_at = None
+    db.session.commit()
+
+    session.pop('two_factor_verified', None)
+    flash('2FA disabled.')
+    return redirect(url_for('auth.two_factor_manage'))
+
+
+@auth_bp.route('/2fa/regenerate-backup-codes', methods=['POST'])
+@login_required
+def two_factor_regen_backup():
+    if not current_user.two_factor_enabled:
+        flash('Enable 2FA first.')
+        return redirect(url_for('auth.two_factor_manage'))
+
+    password = request.form.get('password') or ''
+    if not current_user.check_password(password):
+        flash('Password incorrect.')
+        return redirect(url_for('auth.two_factor_manage'))
+
+    codes = tf.generate_backup_codes(10)
+    current_user.two_factor_backup_codes = tf.hash_backup_codes(codes)
+    db.session.commit()
+    return render_template('auth/2fa_backup_codes.html', codes=codes)
+
+
+# =============================================================================
+# Login post-hook: require 2FA verification
+# =============================================================================
+# We hook into Flask-Login's `session_protection` and rely on a
+# before_request to enforce 2FA for users who have it enabled.

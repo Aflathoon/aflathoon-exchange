@@ -84,6 +84,28 @@ def create_app(config_name: str = None):
     app.register_blueprint(logistics_bp, url_prefix='/logistics')
     app.register_blueprint(compliance_bp, url_prefix='/compliance')
 
+    # --- Enforce 2FA after login ---
+    @app.before_request
+    def enforce_2fa():
+        from flask import request, redirect, url_for, session
+        from flask_login import current_user
+
+        # Whitelist: static files, auth routes, 2FA routes
+        path = request.path or ''
+        if path.startswith(('/static/', '/auth/2fa/', '/auth/logout',
+                            '/auth/login', '/auth/register', '/health')):
+            return None
+
+        if not current_user.is_authenticated:
+            return None
+        if not getattr(current_user, 'two_factor_enabled', False):
+            return None
+        if session.get('two_factor_verified') is True:
+            return None
+
+        # Must verify 2FA
+        return redirect(url_for('auth.two_factor_verify', next=path))
+
     # --- Create tables ---
     with app.app_context():
         # Import models so they register with SQLAlchemy metadata

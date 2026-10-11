@@ -41,6 +41,7 @@
     <hr>
     {% if current_user.is_authenticated %}
       <a href="/auth/profile"><span class="ico">👤</span> Profile</a>
+            <a href="/auth/2fa/manage"><span class="ico">🔐</span> 2FA</a>
       <a href="/auth/change-password"><span class="ico">🔑</span> Password</a>
       <a href="/auth/logout">          <span class="ico">⏻</span> Logout</a>
     {% else %}
@@ -141,5 +142,6 @@
   setInterval(refreshSource, 20000);
 })();
 </script>
+<script src="/static/js/reveal-password.js" defer></script>
 {% block scripts %}{% endblock %}
 </body></html>

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Two-Factor Authentication — Aflathoon{% endblock %}
+{% block search_placeholder %}2FA settings{% endblock %}
+
+{% block content %}
+<h1 class="afl-page-title">Two-Factor Authentication</h1>
+
+{% with messages = get_flashed_messages() %}
+  {% if messages %}{% for m in messages %}
+    <div class="afl-card" style="border-left:3px solid var(--green);padding:.7rem 1rem;margin-bottom:1rem">{{ m }}</div>
+  {% endfor %}{% endif %}
+{% endwith %}
+
+<div class="afl-card" style="max-width:640px">
+  {% if current_user.two_factor_enabled %}
+    <h3 class="afl-h3">✓ 2FA is <span style="color:var(--green-fg)">enabled</span></h3>
+    <p style="color:var(--text-2);line-height:1.6">
+      Your account is protected by a TOTP authenticator. Every login requires a fresh code.
+    </p>
+
+    <table class="afl-table" style="margin-top:1rem">
+      <tr><td class="afl-k">Enabled on</td><td>{{ current_user.two_factor_confirmed_at.strftime('%Y-%m-%d %H:%M') if current_user.two_factor_confirmed_at else '—' }}</td></tr>
+      <tr><td class="afl-k">Backup codes remaining</td><td>{{ remaining }} of 10</td></tr>
+    </table>
+
+    <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:1.2rem">
+      <form method="post" action="/auth/2fa/regenerate-backup-codes" style="display:flex;gap:.4rem;align-items:center">
+        <input name="password" type="password" placeholder="Your password" class="afl-in" required>
+        <button class="afl-btn secondary">Regenerate backup codes</button>
+      </form>
+    </div>
+
+    <hr style="border:0;border-top:1px solid var(--border);margin:1.4rem 0">
+
+    <h3 class="afl-h3" style="color:var(--red-fg)">Danger zone</h3>
+    <p style="color:var(--muted);font-size:.85rem">Disabling 2FA reduces your account security.</p>
+    <form method="post" action="/auth/2fa/disable" style="display:flex;gap:.4rem;align-items:center">
+      <input name="password" type="password" placeholder="Confirm your password" class="afl-in" required>
+      <button class="afl-btn" style="background:var(--red)">Disable 2FA</button>
+    </form>
+  {% else %}
+    <h3 class="afl-h3">2FA is currently <span style="color:var(--amber-fg)">disabled</span></h3>
+    <p style="color:var(--text-2);line-height:1.6">
+      Add a second layer of security. After enabling, you'll need a code from your authenticator app
+      (Google Authenticator, Authy, 1Password, Bitwarden, Aegis) on every login.
+    </p>
+    <p style="color:var(--muted);font-size:.85rem;margin-top:.6rem">
+      <strong>Admins should enable 2FA.</strong> It's the single most effective protection
+      against credential stuffing and phishing.
+    </p>
+    <a href="/auth/2fa/setup" class="afl-btn" style="text-decoration:none;display:inline-block;margin-top:1rem">Set up 2FA →</a>
+  {% endif %}
+</div>
+
+<div class="afl-card" style="max-width:640px;margin-top:1rem">
+  <h3 class="afl-h3">How it works</h3>
+  <ol style="color:var(--text-2);line-height:1.8;margin:.4rem 0 0 1.2rem;padding:0;font-size:.88rem">
+    <li>You scan a QR code with your authenticator app — done once, at setup.</li>
+    <li>The app generates a new 6-digit code every 30 seconds.</li>
+    <li>On login, you enter the current code after your password.</li>
+    <li>If you lose your phone, use one of the 10 backup codes.</li>
+  </ol>
+</div>
+{% endblock %}
