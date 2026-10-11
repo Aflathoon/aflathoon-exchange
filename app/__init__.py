@@ -123,17 +123,25 @@ def create_app(config_name: str = None):
         return inject_template_helper()
 
     # --- Background engines ---
-    try:
-        from app.services import alert_engine
-        alert_engine.start_engine()
-    except Exception as _e:
-        print(f"[app] alert_engine start failed: {_e}", flush=True)
+    # Only start when actually serving requests, not on CLI imports
+    import os as _os
+    _should_start_engines = (
+        _os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or    # debug reloader child
+        _os.environ.get('FLASK_SKIP_ENGINES') != '1'         # normal startup
+    )
+    if _os.environ.get('FLASK_SKIP_ENGINES') != '1' and        _os.environ.get('_AFL_ENGINES_STARTED') != '1':
+        _os.environ['_AFL_ENGINES_STARTED'] = '1'
+        try:
+            from app.services import alert_engine
+            alert_engine.start_engine()
+        except Exception as _e:
+            print(f"[app] alert_engine start failed: {_e}", flush=True)
 
-    try:
-        from app.services import price_alerts
-        price_alerts.start_engine()
-    except Exception as _e:
-        print(f"[app] price_alerts start failed: {_e}", flush=True)
+        try:
+            from app.services import price_alerts
+            price_alerts.start_engine()
+        except Exception as _e:
+            print(f"[app] price_alerts start failed: {_e}", flush=True)
 
     # --- Create tables ---
     with app.app_context():

@@ -210,10 +210,15 @@ def two_factor_setup():
         flash('2FA is already enabled. Disable it first to reconfigure.')
         return redirect(url_for('auth.two_factor_manage'))
 
-    # Generate (or reuse) a pending secret stored in session
-    if 'pending_2fa_secret' not in session:
-        session['pending_2fa_secret'] = tf.generate_secret()
-    secret = session['pending_2fa_secret']
+    # Generate (or reuse) a pending secret — persist it to the DB so
+    # a lost session (browser close, cache clear) doesn't wipe setup.
+    if current_user.two_factor_secret and not current_user.two_factor_enabled:
+        secret = current_user.two_factor_secret
+    else:
+        secret = tf.generate_secret()
+        current_user.two_factor_secret = secret
+        current_user.two_factor_enabled = False   # explicit; not yet confirmed
+        db.session.commit()
 
     uri = tf.provisioning_uri(secret, current_user.username)
     qr = tf.qr_png_data_uri(uri)
@@ -225,13 +230,14 @@ def two_factor_setup():
             return render_template('auth/2fa_setup.html',
                                    secret=secret, uri=uri, qr=qr, step='verify')
 
-        # Generate and store backup codes
+        # Generate and store backup codes, then flip the flag
         codes = tf.generate_backup_codes(10)
         current_user.two_factor_secret = secret
         current_user.two_factor_enabled = True
         current_user.two_factor_backup_codes = tf.hash_backup_codes(codes)
         current_user.two_factor_confirmed_at = datetime.utcnow()
         db.session.commit()
+        print(f"[2FA] enabled for user {current_user.username} (id={current_user.id})", flush=True)
 
         # Mark this session as 2FA-verified
         session['two_factor_verified'] = True

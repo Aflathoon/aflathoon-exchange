@@ -1,31 +1,42 @@
 """
-Curated crypto news + trend data.
+Crypto news + trend data.
 
-Free sources (no key):
-  - CoinGecko trending coins
-  - CoinGecko global market data
+Sources:
+  1. CoinGecko (no key): trending coins + global market data
+  2. RSS feeds from vetted crypto outlets (no key, no rate limit)
 
-Optional (needs NEWSAPI_KEY):
-  - NewsAPI.org headlines from a whitelist of crypto outlets
+RSS gives us title, URL, published date, and — with a bit of parsing —
+lead images. We try multiple fields per item because RSS doesn't
+standardise image placement.
 
-Design: we never surface user-generated or unknown-source text.
-Every headline comes from a source we explicitly trust, or is omitted.
+Design: we only surface headlines from our whitelist of trusted outlets.
+No user-generated text ever hits the UI.
 """
 import os
+import re
 import time
+import html
 import threading
+from datetime import datetime, timezone
+
 import requests
+import feedparser
+from bs4 import BeautifulSoup
 
 
 CG_BASE = os.getenv('COINGECKO_BASE_URL', 'https://api.coingecko.com/api/v3')
-REFRESH_SECONDS = int(os.getenv('NEWS_REFRESH_SECONDS', '300'))
-HTTP_TIMEOUT = 10
+REFRESH_SECONDS = int(os.getenv('NEWS_REFRESH_SECONDS', '600'))    # 10 min
+HTTP_TIMEOUT = 12
+USER_AGENT = 'AflathoonExchange/1.0 (+https://aflathoon.local)'
 
-# Whitelisted news sources for the optional NewsAPI mode
-NEWSAPI_WHITELIST = os.getenv(
-    'NEWSAPI_WHITELIST',
-    'coindesk,cointelegraph,theblock,decrypt,bitcoinmagazine'
-).split(',')
+# Trusted RSS feeds — one per outlet
+RSS_FEEDS = [
+    ('CoinDesk',        'https://www.coindesk.com/arc/outboundfeeds/rss/'),
+    ('Cointelegraph',   'https://cointelegraph.com/rss'),
+    ('The Block',       'https://www.theblock.co/rss.xml'),
+    ('Decrypt',         'https://decrypt.co/feed'),
+    ('Bitcoin Magazine','https://bitcoinmagazine.com/.rss/full/'),
+]
 
 
 class CryptoNews:
@@ -40,9 +51,11 @@ class CryptoNews:
         self._thread = None
         self._source = 'fallback'
 
-    # ---------------------------------------------------------------- fetchers
+    # ------------------------------------------------------------ coingecko
     def _fetch_trending(self):
-        r = requests.get(f"{CG_BASE}/search/trending", timeout=HTTP_TIMEOUT)
+        r = requests.get(f"{CG_BASE}/search/trending",
+                         timeout=HTTP_TIMEOUT,
+                         headers={'User-Agent': USER_AGENT})
         r.raise_for_status()
         data = r.json()
         out = []
@@ -57,7 +70,9 @@ class CryptoNews:
         return out
 
     def _fetch_global(self):
-        r = requests.get(f"{CG_BASE}/global", timeout=HTTP_TIMEOUT)
+        r = requests.get(f"{CG_BASE}/global",
+                         timeout=HTTP_TIMEOUT,
+                         headers={'User-Agent': USER_AGENT})
         r.raise_for_status()
         data = r.json().get('data') or {}
         return {
@@ -68,73 +83,180 @@ class CryptoNews:
             'market_cap_change_24h': data.get('market_cap_change_percentage_24h_usd'),
         }
 
-    def _fetch_newsapi(self):
-        key = (os.getenv('NEWSAPI_KEY') or '').strip()
-        if not key:
-            return []
+    # ---------------------------------------------------------------- RSS
+    def _extract_image(self, entry):
+        """
+        Try every known place RSS feeds put the lead image.
+        Returns URL string or None.
+        """
+        # 1. media:thumbnail / media:content (Yahoo Media RSS)
+        for field in ('media_thumbnail', 'media_content'):
+            items = entry.get(field) or []
+            for m in items:
+                url = m.get('url') if isinstance(m, dict) else None
+                if url:
+                    return url
+
+        # 2. enclosure
+        for enc in (entry.get('enclosures') or []):
+            url = enc.get('href') or enc.get('url')
+            ctype = (enc.get('type') or '').lower()
+            if url and (not ctype or ctype.startswith('image')):
+                return url
+
+        # 3. <link rel="enclosure">
+        for link in (entry.get('links') or []):
+            if link.get('rel') == 'enclosure' and link.get('href'):
+                ctype = (link.get('type') or '').lower()
+                if not ctype or ctype.startswith('image'):
+                    return link['href']
+
+        # 4. Inline <img> inside description or content:encoded
+        for field in ('summary', 'description', 'content'):
+            raw = entry.get(field)
+            if not raw:
+                continue
+            if isinstance(raw, list):
+                raw = ' '.join((c.get('value') or '') for c in raw if isinstance(c, dict))
+            if not isinstance(raw, str):
+                continue
+            try:
+                soup = BeautifulSoup(raw, 'lxml')
+                img = soup.find('img')
+                if img and img.get('src'):
+                    return img['src']
+            except Exception:
+                pass
+
+        # 5. Fallback: regex for og:image style URLs in any string field
+        for field in ('summary', 'description'):
+            raw = entry.get(field)
+            if isinstance(raw, str):
+                m = re.search(r'https?://[^\s"\'<>]+\.(?:jpg|jpeg|png|webp)', raw, re.I)
+                if m:
+                    return m.group(0)
+
+        return None
+
+    def _clean_text(self, text):
+        """Strip HTML tags and unescape entities."""
+        if not text:
+            return ''
         try:
-            r = requests.get(
-                'https://newsapi.org/v2/everything',
-                params={
-                    'q': 'crypto OR bitcoin OR ethereum',
-                    'language': 'en',
-                    'sortBy': 'publishedAt',
-                    'pageSize': 15,
-                },
-                headers={'X-Api-Key': key},
-                timeout=HTTP_TIMEOUT,
-            )
-            r.raise_for_status()
-            articles = r.json().get('articles') or []
+            soup = BeautifulSoup(text, 'lxml')
+            plain = soup.get_text(' ', strip=True)
         except Exception:
+            plain = re.sub(r'<[^>]+>', ' ', text)
+        return html.unescape(plain).strip()
+
+    def _parse_published(self, entry):
+        """Try to extract a sensible ISO datetime from the entry."""
+        for key in ('published_parsed', 'updated_parsed', 'created_parsed'):
+            t = entry.get(key)
+            if t:
+                try:
+                    dt = datetime(*t[:6], tzinfo=timezone.utc)
+                    return dt.isoformat()
+                except Exception:
+                    pass
+        # Fallback: string fields
+        return entry.get('published') or entry.get('updated') or None
+
+    def _fetch_one_feed(self, source_name, url):
+        """Fetch and parse one RSS feed. Returns list of article dicts."""
+        try:
+            # Pre-fetch with requests so we control User-Agent and timeouts
+            resp = requests.get(url, timeout=HTTP_TIMEOUT,
+                                headers={'User-Agent': USER_AGENT,
+                                         'Accept': 'application/rss+xml, application/xml, text/xml'})
+            if resp.status_code != 200:
+                print(f"[news] {source_name}: HTTP {resp.status_code}", flush=True)
+                return []
+            parsed = feedparser.parse(resp.content)
+            if parsed.bozo:
+                # Some feeds have minor XML issues; feedparser still parses them
+                pass
+            items = []
+            for entry in parsed.entries[:15]:
+                title = self._clean_text(entry.get('title') or '')[:200]
+                if not title:
+                    continue
+                link = entry.get('link') or ''
+                if not link:
+                    continue
+                items.append({
+                    'title': title,
+                    'url': link,
+                    'source': source_name,
+                    'published_at': self._parse_published(entry),
+                    'image': self._extract_image(entry),
+                    'description': self._clean_text(
+                        entry.get('summary') or entry.get('description') or ''
+                    )[:200] or None,
+                })
+            return items
+        except Exception as e:
+            print(f"[news] {source_name} fetch failed: {type(e).__name__}: {e}", flush=True)
             return []
 
-        out = []
-        for a in articles:
-            src = ((a.get('source') or {}).get('id') or '').lower()
-            name = ((a.get('source') or {}).get('name') or '').lower()
-            if not any(w in src or w in name for w in NEWSAPI_WHITELIST):
+    def _fetch_rss(self):
+        """Fetch all feeds sequentially, merge, sort by published_at."""
+        all_items = []
+        for name, url in RSS_FEEDS:
+            items = self._fetch_one_feed(name, url)
+            all_items.extend(items)
+
+        def sort_key(a):
+            p = a.get('published_at')
+            if not p:
+                return ''
+            return p
+
+        all_items.sort(key=sort_key, reverse=True)
+        # Deduplicate by URL
+        seen = set()
+        unique = []
+        for it in all_items:
+            if it['url'] in seen:
                 continue
-            out.append({
-                'title': (a.get('title') or '')[:200],
-                'url': a.get('url'),
-                'source': (a.get('source') or {}).get('name') or '',
-                'published_at': a.get('publishedAt'),
-            })
-            if len(out) >= 8:
+            seen.add(it['url'])
+            unique.append(it)
+            if len(unique) >= 10:
                 break
-        return out
+
+        print(f"[news] RSS: {len(all_items)} total items, {len(unique)} unique shown", flush=True)
+        return unique
 
     # ---------------------------------------------------------------- refresh
     def _refresh_once(self):
-        with self._lock:
-            trending = self._trending
-            glob = self._global
-            news = self._items
         ok = False
+
         try:
             t = self._fetch_trending()
             if t:
                 with self._lock:
                     self._trending = t
                 ok = True
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[news] trending failed: {e}", flush=True)
+
         try:
             g = self._fetch_global()
             if g:
                 with self._lock:
                     self._global = g
                 ok = True
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[news] global failed: {e}", flush=True)
+
         try:
-            n = self._fetch_newsapi()
-            if n:
+            items = self._fetch_rss()
+            if items:
                 with self._lock:
-                    self._items = n
-        except Exception:
-            pass
+                    self._items = items
+                ok = True
+        except Exception as e:
+            print(f"[news] RSS failed: {e}", flush=True)
 
         with self._lock:
             if ok:
@@ -149,8 +271,8 @@ class CryptoNews:
         while not self._stop.is_set():
             try:
                 self._refresh_once()
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[news] refresh loop error: {e}", flush=True)
             self._stop.wait(REFRESH_SECONDS)
 
     def start(self):
@@ -170,7 +292,7 @@ class CryptoNews:
                 'trending': list(self._trending),
                 'global': dict(self._global),
                 'news': list(self._items),
-                'has_newsapi': bool((os.getenv('NEWSAPI_KEY') or '').strip()),
+                'provider': 'rss',
             }
 
 
