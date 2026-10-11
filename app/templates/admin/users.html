@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Users — Aflathoon{% endblock %}
+
+{% block content %}
+<h1 class="afl-page-title">Users</h1>
+
+<div class="tabs" style="margin-bottom:1rem">
+  <a href="/admin/">Overview</a>
+  <a href="/admin/blotter">Blotter</a>
+  <a href="/admin/positions">Positions</a>
+  <a class="active" href="/admin/users">Users</a>
+</div>
+
+{% with messages = get_flashed_messages() %}
+  {% if messages %}{% for m in messages %}<div class="afl-card" style="border-left:3px solid var(--green)">{{ m }}</div>{% endfor %}{% endif %}
+{% endwith %}
+
+<div class="afl-card">
+  <table class="afl-table">
+    <tr><th>ID</th><th>Username</th><th>Email</th><th>Admin</th><th>Active</th><th>KYC</th><th>Created</th><th>Actions</th></tr>
+    {% for u in users %}
+    <tr>
+      <td>{{ u.id }}</td>
+      <td>{{ u.username }}</td>
+      <td>{{ u.email }}</td>
+      <td><span class="afl-status {{ 'confirmed' if u.is_admin else 'cancelled' }}">{{ 'yes' if u.is_admin else 'no' }}</span></td>
+      <td><span class="afl-status {{ 'confirmed' if u.is_active else 'cancelled' }}">{{ 'yes' if u.is_active else 'no' }}</span></td>
+      <td>{{ u.kyc_status }}</td>
+      <td>{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '—' }}</td>
+      <td style="display:flex;gap:.4rem;flex-wrap:wrap">
+        <form method="post" action="/admin/users/{{ u.id }}/toggle_admin">
+          <button class="afl-icon-btn" style="width:auto;padding:.3rem .7rem">{{ 'Demote' if u.is_admin else 'Promote' }}</button>
+        </form>
+        <form method="post" action="/admin/users/{{ u.id }}/toggle_active">
+          <button class="afl-icon-btn" style="width:auto;padding:.3rem .7rem">{{ 'Deactivate' if u.is_active else 'Activate' }}</button>
+        </form>
+        <form method="post" action="/admin/users/{{ u.id }}/reset_password" style="display:flex;gap:.3rem">
+          <input name="new_password" placeholder="new pw" class="afl-icon-btn" style="width:130px;padding:.3rem .5rem" minlength="10">
+          <button class="afl-icon-btn" style="width:auto;padding:.3rem .7rem">Reset</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

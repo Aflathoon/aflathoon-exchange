@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Aflathoon{% endblock %}
+{% block search_placeholder %}Search transactions, users…{% endblock %}
+
+{% block content %}
+<h1 class="afl-page-title">Payments</h1>
+
+  <!-- ======================= ROW 1: HERO + STATS ======================= -->
+  <div class="afl-row afl-row-1">
+
+    <div class="afl-card afl-balance">
+      <div class="afl-balance-top">
+        <div>
+          <span class="afl-k">Balance</span>
+          <div class="afl-balance-chip">xx25</div>
+        </div>
+        <div class="afl-balance-big">
+          <span id="bal-btc">0.0000</span>
+          <span class="unit">BTC</span>
+        </div>
+      </div>
+      <div class="afl-balance-boost">
+        <span id="bal-boost">11.1</span>% Outstanding balance boost
+      </div>
+      <div class="afl-balance-foot">
+        <div>
+          <div class="afl-k">Net (USD)</div>
+          <div class="afl-v big" id="bal-usd">$0.00</div>
+        </div>
+        <div class="afl-spark" id="balance-spark"></div>
+      </div>
+    </div>
+
+    <div class="afl-card afl-ticker">
+      <div class="afl-ticker-row" id="ticker-row">
+        <!-- filled by JS -->
+      </div>
+      <div class="afl-ticker-note" id="ticker-note">
+        Last transaction update — loading…
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ======================= ROW 2: 3 STAT CARDS ======================= -->
+  <div class="afl-row afl-row-3">
+    <div class="afl-card afl-stat">
+      <div class="afl-k">Gross Volume</div>
+      <div class="afl-v" id="stat-gross">$0.00</div>
+      <div class="afl-delta up">▲ 0.0%</div>
+    </div>
+    <div class="afl-card afl-stat">
+      <div class="afl-k">Net Volume</div>
+      <div class="afl-v" id="stat-net">$0.00</div>
+      <div class="afl-delta up">▲ 0.0%</div>
+    </div>
+    <div class="afl-card afl-stat">
+      <div class="afl-k">Per Customer</div>
+      <div class="afl-v" id="stat-percust">$0.00</div>
+      <div class="afl-delta up">▲ 0.0%</div>
+    </div>
+  </div>
+
+  <!-- ======================= ROW 3: TABLE + RIGHT COL ======================= -->
+  <div class="afl-row afl-row-split">
+
+    <div class="afl-card afl-table-card">
+      <div class="afl-table-head">
+        <h3>Payments History</h3>
+        <a href="/admin/blotter" class="afl-link">View all →</a>
+      </div>
+      <table class="afl-table">
+        <thead>
+          <tr>
+            <th>Members</th>
+            <th>Invoice</th>
+            <th>Payment Details</th>
+            <th>Date</th>
+            <th class="right">Amount</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tx-body">
+          <tr><td colspan="7" class="afl-empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="afl-rightcol">
+      <div class="afl-card">
+        <h3 class="afl-h3">P&amp;L · Last 30 days</h3>
+        <canvas id="pnl-canvas" height="120"></canvas>
+        <div class="afl-k" id="pnl-total" style="margin-top:.4rem">Total: —</div>
+      </div>
+
+      <div class="afl-card">
+        <h3 class="afl-h3">Top Currencies</h3>
+        <ul class="afl-rank" id="rank-list"><li class="afl-empty">No data yet</li></ul>
+      </div>
+
+      <div class="afl-card">
+        <h3 class="afl-h3">Recent Activity</h3>
+        <ul class="afl-feed" id="feed-list"><li class="afl-empty">No activity yet</li></ul>
+      </div>
+    </div>
+
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+
+// ---------- helpers ----------
+const $ = (id) => document.getElementById(id);
+const fmtUSD = (n) => '$' + Number(n||0).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+const fmtNum = (n, d=4) => Number(n||0).toFixed(d);
+const initials = (name) => (name||'?').split(/\s+/).map(s=>s[0]).join('').slice(0,2).toUpperCase();
+const hueFromString = (s) => { let h=0; for (const c of s||'') h = (h*31 + c.charCodeAt(0)) % 360; return h; };
+
+// ---------- balance ----------
+async function loadBalance() {
+  try {
+    const j = await (await fetch('/admin/api/balance')).json();
+    $('bal-btc').textContent = fmtNum(j.btc_equiv, 6);
+    $('bal-usd').textContent = fmtUSD(j.net_usd);
+    $('bal-boost').textContent = j.boost_pct ?? '0';
+  } catch(e){ /* ignore */ }
+}
+
+// ---------- ticker ----------
+async function loadTicker() {
+  try {
+    const j = await (await fetch('/admin/api/ticker')).json();
+    $('rate-source').textContent = 'source: ' + (j.source || 'unknown');
+    $('ticker-row').innerHTML = j.pairs.map(p => `
+      <div class="afl-ticker-item">
+        <div class="afl-k">${p.from}/${p.to}</div>
+        <div class="afl-v">$${Number(p.rate).toLocaleString(undefined, {maximumFractionDigits:6})}</div>
+      </div>
+    `).join('');
+    const now = new Date().toLocaleTimeString();
+    $('ticker-note').textContent = `Last update ${now}`;
+  } catch(e){ /* ignore */ }
+}
+
+// ---------- stats ----------
+async function loadStats() {
+  try {
+    const j = await (await fetch('/admin/api/stats')).json();
+    const txCount = j.transactions || 0;
+    const users = j.users || 1;
+    $('stat-gross').textContent = fmtUSD(j.total_volume);
+    $('stat-net').textContent   = fmtUSD(j.total_margin);
+    $('stat-percust').textContent = fmtUSD((j.total_volume||0) / Math.max(1, users));
+  } catch(e){ /* ignore */ }
+}
+
+// ---------- transactions ----------
+async function loadTx() {
+  const body = $('tx-body');
+  try {
+    const rows = await (await fetch('/admin/api/recent-transactions?limit=8')).json();
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="7" class="afl-empty">No transactions yet — book a trade from the Exchange page</td></tr>';
+      return;
+    }
+    body.innerHTML = rows.map(t => {
+      const h = hueFromString(t.user);
+      return `
+        <tr>
+          <td class="afl-member">
+            <div class="afl-ava" style="background:hsl(${h} 60% 45%)">${initials(t.user)}</div>
+            <div><div class="nm">${t.user}</div><div class="cc">—</div></div>
+          </td>
+          <td>${t.invoice}</td>
+          <td>${t.details}</td>
+          <td>${t.date ? new Date(t.date).toLocaleDateString() : '—'}</td>
+          <td class="right">${fmtUSD(t.amount)}</td>
+          <td><span class="afl-status ${t.status}">${t.status}</span></td>
+          <td><a class="afl-link" href="/admin/blotter">view</a></td>
+        </tr>`;
+    }).join('');
+    // feed
+    $('feed-list').innerHTML = rows.slice(0,6).map(t => `
+      <li><span class="dot"></span>
+        <div><div class="txt">${t.user} — ${t.details}</div>
+        <div class="tm">${t.date ? new Date(t.date).toLocaleString() : ''}</div></div></li>
+    `).join('');
+    // rank by currency
+    const counts = {};
+    rows.forEach(t => counts[t.currency] = (counts[t.currency]||0) + 1);
+    const ranked = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    $('rank-list').innerHTML = ranked.length ? ranked.map(([c,n]) =>
+      `<li><span class="ccy">${c}</span><span class="bar"><i style="width:${Math.min(100, n*20)}%"></i></span><span class="n">${n}</span></li>`
+    ).join('') : '<li class="afl-empty">No data yet</li>';
+  } catch(e) {
+    body.innerHTML = '<tr><td colspan="7" class="afl-empty">Error loading transactions</td></tr>';
+  }
+}
+
+// ---------- P&L chart ----------
+async function loadPnl() {
+  try {
+    const j = await (await fetch('/admin/api/pnl?days=30')).json();
+    $('pnl-total').textContent = 'Total: ' + fmtUSD(j.total);
+
+    const c = $('pnl-canvas');
+    const ctx = c.getContext('2d');
+    const W = c.width = c.offsetWidth * (window.devicePixelRatio||1);
+    const H = c.height = 120 * (window.devicePixelRatio||1);
+    ctx.scale(1,1);
+    const pad = 12;
+    const max = Math.max(0.01, ...j.series.map(s => s.revenue));
+    const stepX = (W - pad*2) / Math.max(1, j.series.length - 1);
+
+    ctx.clearRect(0,0,W,H);
+    // grid
+    ctx.strokeStyle = 'rgba(255,255,255,.05)';
+    for (let i=0;i<4;i++){ const y = pad + i*((H-pad*2)/3); ctx.beginPath(); ctx.moveTo(pad,y); ctx.lineTo(W-pad,y); ctx.stroke(); }
+    // line
+    ctx.strokeStyle = '#6f8cff'; ctx.lineWidth = 2; ctx.beginPath();
+    j.series.forEach((s,i)=>{
+      const x = pad + i*stepX;
+      const y = H - pad - (s.revenue / max) * (H - pad*2);
+      if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+    // fill under
+    ctx.lineTo(W-pad, H-pad); ctx.lineTo(pad, H-pad); ctx.closePath();
+    const grad = ctx.createLinearGradient(0,0,0,H);
+    grad.addColorStop(0, 'rgba(111,140,255,.28)');
+    grad.addColorStop(1, 'rgba(111,140,255,0)');
+    ctx.fillStyle = grad; ctx.fill();
+  } catch(e){ /* ignore */ }
+}
+
+// ---------- theme toggle ----------
+function currentTheme(){
+  var m = document.cookie.match(/(?:^|; )afl_theme=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : 'dark';
+}
+function applyTheme(t){
+  document.documentElement.setAttribute('data-theme', t);
+  var icons = {dark:'☾', light:'☀', auto:'◐'};
+  var el = document.getElementById('themeToggle');
+  if (el) el.textContent = icons[t] || '☾';
+  // highlight current in menu
+  document.querySelectorAll('#themeMenu button').forEach(b=>{
+    b.classList.toggle('current', b.dataset.theme === t);
+  });
+}
+function setTheme(t){
+  document.cookie = 'afl_theme=' + encodeURIComponent(t) + '; path=/; max-age=' + (60*60*24*365) + '; SameSite=Lax';
+  applyTheme(t);
+  var m = document.getElementById('themeMenu');
+  if (m) m.classList.remove('open');
+}
+function loadThemeUI(){
+  applyTheme(currentTheme());
+  var btn = document.getElementById('themeToggle');
+  var menu = document.getElementById('themeMenu');
+  if (btn && menu) {
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      menu.classList.toggle('open');
+    });
+    document.addEventListener('click', function(){ menu.classList.remove('open'); });
+    menu.querySelectorAll('button').forEach(b => {
+      b.addEventListener('click', function(ev){
+        ev.stopPropagation();
+        setTheme(b.dataset.theme);
+      });
+    });
+  }
+  // Remove no-transition once the first paint settled
+  requestAnimationFrame(function(){
+    document.documentElement.classList.remove('no-transition');
+  });
+}
+
+// ---------- boot ----------
+loadBalance(); loadTicker(); loadStats(); loadTx(); loadPnl(); loadThemeUI();
+setInterval(loadTicker, 15000);
+setInterval(loadStats, 30000);
+setInterval(loadBalance, 30000);
+
+</script>
+{% endblock %}

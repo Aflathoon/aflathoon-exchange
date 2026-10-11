@@ -1,0 +1,57 @@
+# --- Virtual environment ---
+venv/
+env/
+.venv/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# --- Flask / DB ---
+instance/
+data/
+*.db
+*.sqlite3
+*.db-journal
+
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Logs ---
+logs/
+backups/
+*.log
+*.out
+*.err
+
+# --- Installer scripts (default passwords) ---
+install_aflathoon.sh
+finish_aflathoon.sh
+install_aflathoon*.sh
+
+# --- Tests / coverage ---
+.pytest_cache/
+.coverage
+htmlcov/
+.coverage.*
+
+# --- Editor ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --- Compliance private docs ---
+compliance/documents/private/
+compliance/**/*.pdf
+compliance/**/*.key
+compliance/**/*.pem

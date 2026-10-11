@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Positions — Aflathoon{% endblock %}
+
+{% block content %}
+<h1 class="afl-page-title">Positions</h1>
+
+<div class="tabs" style="margin-bottom:1rem">
+  <a href="/admin/">Overview</a>
+  <a href="/admin/blotter">Blotter</a>
+  <a class="active" href="/admin/positions">Positions</a>
+  <a href="/admin/users">Users</a>
+</div>
+
+<p style="color:var(--muted);font-size:.85rem">
+  Net exposure per currency across CONFIRMED + SETTLED transactions.
+  Positive = holding, negative = short.
+</p>
+
+<div class="afl-row afl-row-3">
+  <div class="afl-card"><h3 class="afl-h3">Net position</h3><table class="afl-table" id="net"><tr><th>Currency</th><th>Net</th></tr></table></div>
+  <div class="afl-card"><h3 class="afl-h3">Outflows</h3><table class="afl-table" id="out"><tr><th>Currency</th><th>Amount</th></tr></table></div>
+  <div class="afl-card"><h3 class="afl-h3">Inflows</h3><table class="afl-table" id="in"><tr><th>Currency</th><th>Amount</th></tr></table></div>
+</div>
+
+<script>
+async function load() {
+  const j = await (await fetch('/admin/api/positions')).json();
+  const fill = (id, rows, key, isNet) => {
+    document.getElementById(id).innerHTML =
+      '<tr><th>Currency</th><th>'+key+'</th></tr>' +
+      (rows.length ? rows.map(x => {
+        const v = x[key.toLowerCase()] ?? 0;
+        const cls = isNet ? (v >= 0 ? 'afl-delta up' : 'afl-delta down') : '';
+        return `<tr><td>${x.currency}</td><td class="${cls}">${Number(v).toFixed(4)}</td></tr>`;
+      }).join('') : '<tr><td colspan="2" class="afl-empty">No data yet</td></tr>');
+  };
+  fill('net', j.net, 'Net', true);
+  fill('out', j.outflows, 'Amount');
+  fill('in',  j.inflows,  'Amount');
+}
+load();
+</script>
+{% endblock %}

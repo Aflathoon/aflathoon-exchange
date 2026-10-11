@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Aflathoon Exchange{% endblock %}</title>
+<link rel="stylesheet" href="/static/css/admin.css">
+<script id="afl-theme-init">
+  // Applied before CSS parses to prevent flash-of-wrong-theme.
+  (function(){
+    document.documentElement.classList.add("no-transition");
+    var m = document.cookie.match(/(?:^|; )afl_theme=([^;]+)/);
+    var t = m ? decodeURIComponent(m[1]) : "dark";
+    document.documentElement.setAttribute("data-theme", t);
+  })();
+</script>
+{% block head %}{% endblock %}
+</head>
+<body class="afl-admin">
+
+<!-- ============================ SIDEBAR ============================ -->
+<aside class="afl-sidebar">
+  <div class="afl-brand">
+    <div class="afl-brand-mark">A</div>
+    <div class="afl-brand-name">Aflathoon<small>Exchange</small></div>
+  </div>
+  <nav class="afl-nav">
+    {% set path = request.path %}
+    <a href="/"                  class="{{ 'active' if path == '/' }}">        <span class="ico">⌂</span> Home</a>
+    <a href="/exchange/"         class="{{ 'active' if path.startswith('/exchange') }}">   <span class="ico">⇄</span> Exchange</a>
+    <a href="/logistics/"        class="{{ 'active' if path.startswith('/logistics') }}">  <span class="ico">🚚</span> Logistics</a>
+    <a href="/compliance/"       class="{{ 'active' if path.startswith('/compliance') }}"> <span class="ico">🛡</span> Compliance</a>
+    {% if current_user.is_authenticated and current_user.is_admin %}
+    <hr>
+    <a href="/admin/"            class="{{ 'active' if path == '/admin/' }}">          <span class="ico">▦</span> Dashboard</a>
+    <a href="/admin/blotter"     class="{{ 'active' if path.startswith('/admin/blotter') }}">   <span class="ico">☰</span> Blotter</a>
+    <a href="/admin/positions"   class="{{ 'active' if path.startswith('/admin/positions') }}"> <span class="ico">↗</span> Positions</a>
+    <a href="/admin/users"       class="{{ 'active' if path.startswith('/admin/users') }}">     <span class="ico">👥</span> Users</a>
+    {% endif %}
+    <hr>
+    {% if current_user.is_authenticated %}
+      <a href="/auth/change-password"><span class="ico">🔑</span> Password</a>
+      <a href="/auth/logout">          <span class="ico">⏻</span> Logout</a>
+    {% else %}
+      <a href="/auth/login">           <span class="ico">→</span> Login</a>
+    {% endif %}
+  </nav>
+</aside>
+
+<!-- ============================ MAIN ============================ -->
+<main class="afl-main">
+
+  <!-- Topbar with theme toggle (visible on every page) -->
+  <header class="afl-topbar">
+    <div class="afl-search">
+      <input placeholder="{% block search_placeholder %}Search…{% endblock %}" disabled>
+    </div>
+    <div class="afl-topbar-right">
+      <span id="rate-source" class="afl-pill muted">source: —</span>
+      <div class="theme-wrap">
+        <button id="themeToggle" class="afl-icon-btn" title="Theme">☾</button>
+        <div class="theme-menu" id="themeMenu" role="menu">
+          <button type="button" data-theme="dark"  role="menuitem"><span class="ic">☾</span><span class="lbl">Dark</span></button>
+          <button type="button" data-theme="light" role="menuitem"><span class="ic">☀</span><span class="lbl">Light</span></button>
+          <button type="button" data-theme="auto"  role="menuitem"><span class="ic">◐</span><span class="lbl">Auto</span></button>
+        </div>
+      </div>
+      {% if current_user.is_authenticated %}
+        <div class="afl-avatar">{{ current_user.username[0]|upper }}</div>
+      {% endif %}
+    </div>
+  </header>
+
+  <!-- ============================ PAGE BODY ============================ -->
+  {% block content %}{% endblock %}
+
+</main>
+
+<!-- ============================ SHARED JS ============================ -->
+<script>
+(function(){
+  // --- theme ----------------------------------------------------------
+  function currentTheme(){
+    var m = document.cookie.match(/(?:^|; )afl_theme=([^;]+)/);
+    return m ? decodeURIComponent(m[1]) : 'dark';
+  }
+  function applyTheme(t){
+    document.documentElement.setAttribute('data-theme', t);
+    var icons = {dark:'☾', light:'☀', auto:'◐'};
+    var el = document.getElementById('themeToggle');
+    if (el) el.textContent = icons[t] || '☾';
+    document.querySelectorAll('#themeMenu button').forEach(function(b){
+      b.classList.toggle('current', b.dataset.theme === t);
+    });
+  }
+  function setTheme(t){
+    document.cookie = 'afl_theme=' + encodeURIComponent(t) + '; path=/; max-age=' + (60*60*24*365) + '; SameSite=Lax';
+    applyTheme(t);
+    var m = document.getElementById('themeMenu');
+    if (m) m.classList.remove('open');
+  }
+  function initTheme(){
+    applyTheme(currentTheme());
+    var btn = document.getElementById('themeToggle');
+    var menu = document.getElementById('themeMenu');
+    if (btn && menu) {
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        menu.classList.toggle('open');
+      });
+      document.addEventListener('click', function(){ menu.classList.remove('open'); });
+      menu.querySelectorAll('button').forEach(function(b){
+        b.addEventListener('click', function(ev){
+          ev.stopPropagation();
+          setTheme(b.dataset.theme);
+        });
+      });
+    }
+    requestAnimationFrame(function(){
+      document.documentElement.classList.remove('no-transition');
+    });
+  }
+
+  // --- rate source badge ---------------------------------------------
+  async function refreshSource(){
+    var el = document.getElementById('rate-source');
+    if (!el) return;
+    try {
+      var r = await fetch('/exchange/source');
+      if (!r.ok) return;
+      var j = await r.json();
+      el.textContent = 'source: ' + (j.source || 'unknown');
+    } catch(e){}
+  }
+
+  initTheme();
+  refreshSource();
+  setInterval(refreshSource, 20000);
+})();
+</script>
+{% block scripts %}{% endblock %}
+</body></html>

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Aflathoon Exchange{% endblock %}
+{% block search_placeholder %}Search markets…{% endblock %}
+
+{% block content %}
+<h1 class="afl-page-title">Multi-Asset Exchange Platform</h1>
+
+<div class="afl-row afl-row-3" style="max-width:900px">
+  <a class="afl-card" href="/exchange/" style="text-decoration:none">
+    <div class="afl-k">Convert</div>
+    <div class="afl-v" style="font-size:1.2rem;margin-top:.3rem">Fiat · Crypto · Commodities</div>
+    <div style="color:var(--muted);font-size:.82rem;margin-top:.4rem">Live rates with 6.5% spread →</div>
+  </a>
+  <a class="afl-card" href="/logistics/" style="text-decoration:none">
+    <div class="afl-k">Freight</div>
+    <div class="afl-v" style="font-size:1.2rem;margin-top:.3rem">Sea · Air · Road · Pipeline</div>
+    <div style="color:var(--muted);font-size:.82rem;margin-top:.4rem">Instant shipping quotes →</div>
+  </a>
+  <a class="afl-card" href="/compliance/" style="text-decoration:none">
+    <div class="afl-k">Compliance</div>
+    <div class="afl-v" style="font-size:1.2rem;margin-top:.3rem">Licenses · Deadlines</div>
+    <div style="color:var(--muted);font-size:.82rem;margin-top:.4rem">Regulatory overview →</div>
+  </a>
+</div>
+
+<div class="afl-card" style="max-width:900px;margin-top:1rem">
+  <h3 class="afl-h3">Getting started</h3>
+  <ol style="color:var(--text-2);line-height:1.7;margin:.4rem 0 0 1.2rem;padding:0">
+    <li>Open <a class="afl-link" href="/exchange/">Exchange</a> and convert an amount.</li>
+    <li>Click <strong>Book trade</strong> to record it — admins see it instantly in the <a class="afl-link" href="/admin/blotter">Blotter</a>.</li>
+    <li>Register real licenses at <a class="afl-link" href="/compliance/">Compliance</a>.</li>
+    <li>Set <code>LIVE_TRADING_ENABLED=true</code> in <code>.env</code> only once licenses are active.</li>
+  </ol>
+</div>
+
+{% if not current_user.is_authenticated %}
+<div class="afl-card" style="max-width:900px;margin-top:1rem;border-left:3px solid var(--amber)">
+  You're not logged in. <a class="afl-link" href="/auth/login">Sign in</a> or <a class="afl-link" href="/auth/register">register</a>.
+</div>
+{% endif %}
+{% endblock %}

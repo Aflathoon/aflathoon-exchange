@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Compliance — Aflathoon{% endblock %}
+{% block search_placeholder %}Search licenses, deadlines…{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center">
+  <h1 class="afl-page-title">Compliance &amp; Licensing</h1>
+  <a class="afl-btn" href="/compliance/export.csv" style="text-decoration:none">⬇ Export CSV</a>
+</div>
+
+<h2 class="afl-h3" style="margin-top:1.2rem">Cost Rollup</h2>
+<div class="afl-row afl-row-3">
+  <div class="afl-card"><div class="afl-k">License renewals</div><div class="afl-v big">{{ cost.currency }} {{ '%.2f'|format(cost.licenses_total) }}</div></div>
+  <div class="afl-card"><div class="afl-k">Other deadlines</div><div class="afl-v big">{{ cost.currency }} {{ '%.2f'|format(cost.deadlines_total) }}</div></div>
+  <div class="afl-card"><div class="afl-k">Grand total</div><div class="afl-v big hl">{{ cost.currency }} {{ '%.2f'|format(cost.grand_total) }}</div></div>
+</div>
+
+<h2 class="afl-h3" style="margin-top:1.5rem">⚠ Alerts</h2>
+<div class="afl-card">
+  {% if alerts.expired %}<p style="color:var(--red-fg)"><strong>EXPIRED:</strong> {% for l in alerts.expired %}{{ l.name }} ({{ l.expiry_date }}){% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+  {% if alerts.expiring_7 %}<p style="color:var(--red-fg)"><strong>Expiring within 7 days:</strong> {% for l in alerts.expiring_7 %}{{ l.name }} ({{ l.expiry_date }}){% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+  {% if alerts.expiring_30 %}<p style="color:var(--amber-fg)"><strong>Expiring in 8–30 days:</strong> {% for l in alerts.expiring_30 %}{{ l.name }} ({{ l.expiry_date }}){% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+  {% if alerts.deadlines_7 %}<p style="color:var(--red-fg)"><strong>Deadlines within 7 days:</strong> {% for d in alerts.deadlines_7 %}{{ d.title }} ({{ d.due_date }}){% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+  {% if alerts.deadlines_30 %}<p style="color:var(--amber-fg)"><strong>Deadlines in 8–30 days:</strong> {% for d in alerts.deadlines_30 %}{{ d.title }} ({{ d.due_date }}){% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+  {% if not (alerts.expired or alerts.expiring_7 or alerts.expiring_30 or alerts.deadlines_7 or alerts.deadlines_30) %}
+    <p style="color:var(--green-fg)">No urgent alerts in the next 30 days.</p>
+  {% endif %}
+</div>
+
+<h2 class="afl-h3" style="margin-top:1.5rem">12-Month Calendar</h2>
+<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.6rem;margin-top:.5rem">
+  {% for (y, m), items in calendar.items() %}
+  <div class="afl-card" style="padding:.7rem">
+    <div style="color:var(--accent);font-weight:700;font-size:.85rem;margin-bottom:.3rem">{{ '%02d'|format(m) }}/{{ y }}</div>
+    {% for l in items.licenses %}<div style="font-size:.75rem;color:var(--text-2)">📜 {{ l.name }} ({{ l.expiry_date.day }})</div>{% endfor %}
+    {% for d in items.deadlines %}<div style="font-size:.75rem;color:var(--text-2)">⏰ {{ d.title }} ({{ d.due_date.day }})</div>{% endfor %}
+    {% if not items.licenses and not items.deadlines %}<div style="font-size:.75rem;color:var(--muted-2)">—</div>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<h2 class="afl-h3" style="margin-top:1.5rem">Licenses</h2>
+<div class="afl-card">
+  <table class="afl-table">
+    <tr><th>Name</th><th>Type</th><th>Jurisdiction</th><th>Status</th><th>Expiry</th><th>Days</th><th>Cost</th></tr>
+    {% for l in licenses %}
+    <tr>
+      <td>{{ l.name }}</td><td>{{ l.license_type }}</td><td>{{ l.jurisdiction }}</td>
+      <td><span class="afl-status {{ 'confirmed' if l.status=='active' else 'staged' if l.status=='pending' else 'failed' }}">{{ l.status }}</span></td>
+      <td>{{ l.expiry_date or '—' }}</td>
+      <td>
+        {% if l.days_to_expiry is not none %}
+          <span class="afl-status {% if l.urgency in ('expired','critical') %}failed{% elif l.urgency == 'soon' %}staged{% else %}confirmed{% endif %}">{{ l.days_to_expiry }}d</span>
+        {% else %}—{% endif %}
+      </td>
+      <td>{{ l.currency }} {{ l.renewal_cost }}</td>
+    </tr>
+    {% endfor %}
+    {% if not licenses %}<tr><td colspan="7" class="afl-empty">No licenses registered yet</td></tr>{% endif %}
+  </table>
+
+  <details style="margin-top:1rem">
+    <summary style="cursor:pointer;color:var(--accent);font-weight:600">+ Add license</summary>
+    <form method="post" action="/compliance/license/add" style="margin-top:.6rem;display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
+      <input name="name" placeholder="License name" required class="afl-in">
+      <input name="license_type" placeholder="Type (msb/money_transmitter/crypto_asset)" class="afl-in">
+      <input name="jurisdiction" placeholder="Jurisdiction (e.g. UK)" class="afl-in">
+      <input name="authority" placeholder="Authority (e.g. FCA)" class="afl-in">
+      <input name="license_number" placeholder="License #" class="afl-in">
+      <select name="status" class="afl-in"><option>pending</option><option>active</option><option>expired</option><option>suspended</option></select>
+      <input name="issued_date" type="date" class="afl-in" title="Issued date">
+      <input name="expiry_date" type="date" class="afl-in" title="Expiry date">
+      <input name="renewal_cost" type="number" step="0.01" placeholder="Renewal cost" class="afl-in">
+      <input name="currency" value="GBP" class="afl-in" style="width:80px">
+      <input name="document_path" placeholder="Document path" class="afl-in" style="grid-column:1/-1">
+      <textarea name="notes" placeholder="Notes" rows="2" class="afl-in" style="grid-column:1/-1"></textarea>
+      <button class="afl-btn" style="grid-column:1/-1">Add license</button>
+    </form>
+  </details>
+</div>
+
+<h2 class="afl-h3" style="margin-top:1.5rem">Deadlines</h2>
+<div class="afl-card">
+  <table class="afl-table">
+    <tr><th>Title</th><th>Category</th><th>Due</th><th>Days</th><th>Responsible</th><th>Cost</th></tr>
+    {% for d in deadlines %}
+    <tr>
+      <td>{{ d.title }}</td><td>{{ d.category }}</td><td>{{ d.due_date }}</td>
+      <td><span class="afl-status {% if d.urgency in ('expired','critical') %}failed{% elif d.urgency == 'soon' %}staged{% else %}confirmed{% endif %}">{{ d.days_left }}d</span></td>
+      <td>{{ d.responsible }}</td>
+      <td>{{ d.currency }} {{ d.cost_estimate }}</td>
+    </tr>
+    {% endfor %}
+    {% if not deadlines %}<tr><td colspan="6" class="afl-empty">No open deadlines</td></tr>{% endif %}
+  </table>
+
+  <details style="margin-top:1rem">
+    <summary style="cursor:pointer;color:var(--accent);font-weight:600">+ Add deadline</summary>
+    <form method="post" action="/compliance/deadline/add" style="margin-top:.6rem;display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
+      <input name="title" placeholder="Title" required class="afl-in">
+      <select name="category" class="afl-in"><option>license</option><option>tax</option><option>audit</option><option>insurance</option><option>kyc</option></select>
+      <input name="due_date" type="date" required class="afl-in">
+      <select name="recurrence" class="afl-in"><option>none</option><option>monthly</option><option>quarterly</option><option>annual</option></select>
+      <input name="responsible" placeholder="Responsible" class="afl-in">
+      <input name="cost_estimate" type="number" step="0.01" placeholder="Cost" class="afl-in">
+      <input name="currency" value="GBP" class="afl-in" style="width:80px">
+      <textarea name="notes" placeholder="Notes" rows="2" class="afl-in" style="grid-column:1/-1"></textarea>
+      <button class="afl-btn" style="grid-column:1/-1">Add deadline</button>
+    </form>
+  </details>
+</div>
+
+<h2 class="afl-h3" style="margin-top:1.5rem">Documents</h2>
+<div class="afl-card">
+  <table class="afl-table">
+    <tr><th>Title</th><th>Type</th><th>Version</th><th>File</th><th>Size</th><th>Uploaded</th></tr>
+    {% for doc in documents %}
+    <tr>
+      <td>{{ doc.title }}</td><td>{{ doc.doc_type }}</td><td>{{ doc.version }}</td>
+      <td>{{ doc.file_path or '—' }}</td>
+      <td>{% if doc.file_size %}{{ (doc.file_size // 1024) }} KB{% else %}—{% endif %}</td>
+      <td>{{ doc.uploaded_at.strftime('%Y-%m-%d %H:%M') if doc.uploaded_at else '—' }}</td>
+    </tr>
+    {% endfor %}
+    {% if not documents %}<tr><td colspan="6" class="afl-empty">No documents uploaded</td></tr>{% endif %}
+  </table>
+
+  <details style="margin-top:1rem">
+    <summary style="cursor:pointer;color:var(--accent);font-weight:600">+ Upload document (max 16 MB)</summary>
+    <form method="post" action="/compliance/document/upload" enctype="multipart/form-data" style="margin-top:.6rem;display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
+      <input type="file" name="file" required class="afl-in" style="grid-column:1/-1">
+      <input name="title" placeholder="Title (optional)" class="afl-in">
+      <select name="doc_type" class="afl-in"><option>license</option><option>insurance</option><option>kyc</option><option>contract</option><option>policy</option></select>
+      <input name="version" value="1.0" class="afl-in" style="width:80px">
+      <input name="issued_by" placeholder="Issued by" class="afl-in">
+      <button class="afl-btn" style="grid-column:1/-1">Upload</button>
+    </form>
+  </details>
+</div>
+
+<style>
+.afl-in{padding:.5rem;background:var(--input-bg);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:.9rem}
+.afl-btn{padding:.6rem 1.2rem;background:var(--accent);color:#fff;border:0;border-radius:8px;cursor:pointer;font-weight:600}
+.hl{color:var(--accent)}
+</style>
+{% endblock %}

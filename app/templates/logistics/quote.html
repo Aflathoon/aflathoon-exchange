@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Logistics — Aflathoon{% endblock %}
+{% block search_placeholder %}Search routes, carriers…{% endblock %}
+
+{% block content %}
+<h1 class="afl-page-title">Freight Quote</h1>
+
+<div class="afl-card" style="max-width:720px">
+  <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+    <input id="o" placeholder="Origin (ISO, e.g. AE)" value="AE" class="afl-in">
+    <span style="color:var(--muted)">→</span>
+    <input id="d" placeholder="Destination (ISO)" value="DE" class="afl-in">
+    <select id="m" class="afl-in">
+      <option value="sea">Sea</option><option value="air">Air</option>
+      <option value="road">Road</option><option value="rail">Rail</option>
+      <option value="pipeline">Pipeline</option>
+    </select>
+  </div>
+  <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.6rem;align-items:center">
+    <input id="w" type="number" value="10000" placeholder="Weight kg" class="afl-in">
+    <input id="km" type="number" value="8000" placeholder="Distance km" class="afl-in">
+    <button class="afl-btn" onclick="q()">Get quote</button>
+  </div>
+  <div id="out" style="margin-top:1rem"></div>
+</div>
+
+<style>
+.afl-in{padding:.6rem;background:var(--input-bg);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:.95rem}
+.afl-btn{padding:.7rem 1.4rem;background:var(--accent);color:#fff;border:0;border-radius:8px;cursor:pointer;font-weight:600}
+.qrow{display:flex;justify-content:space-between;padding:.5rem 0;border-bottom:1px solid var(--border-2)}
+.qrow:last-child{border-bottom:0}
+.hl{color:var(--accent);font-weight:700}
+</style>
+
+<script>
+async function q(){
+  const r = await fetch('/logistics/quote', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      origin:o.value, destination:d.value, mode:m.value,
+      weight_kg:parseFloat(w.value), distance_km:parseFloat(km.value)
+    })
+  });
+  const j = await r.json();
+  document.getElementById('out').innerHTML = `
+    <div class="qrow"><span class="afl-k">Base freight</span><span>${j.base_freight.toFixed(2)}</span></div>
+    <div class="qrow"><span class="afl-k">Insurance</span><span>${j.insurance.toFixed(2)}</span></div>
+    <div class="qrow"><span class="afl-k">War-risk premium</span><span>${j.war_risk_premium.toFixed(2)}</span></div>
+    <div class="qrow"><span class="afl-k">Platform margin (6.5%)</span><span>${j.platform_margin_6_5.toFixed(2)}</span></div>
+    <div class="qrow"><span class="afl-k">Total</span><span class="hl">${j.total.toFixed(2)}</span></div>
+  `;
+}
+</script>
+{% endblock %}

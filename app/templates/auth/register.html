@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Register — Aflathoon</title>
+<link rel="stylesheet" href="/static/css/admin.css">
+<script id="afl-theme-init">
+  (function(){
+    document.documentElement.classList.add("no-transition");
+    var m = document.cookie.match(/(?:^|; )afl_theme=([^;]+)/);
+    var t = m ? decodeURIComponent(m[1]) : "dark";
+    document.documentElement.setAttribute("data-theme", t);
+  })();
+</script>
+<style>
+body.afl-auth{
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;margin:0;padding:1rem;
+  background:
+    radial-gradient(1200px 800px at 100% -10%, rgba(138,111,255,.10), transparent 60%),
+    radial-gradient(900px 600px at -10% 110%, rgba(111,140,255,.10), transparent 60%),
+    var(--bg);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+}
+.auth-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:16px;padding:2rem;width:420px;max-width:92vw;box-shadow:var(--shadow);
+}
+.auth-card h2{margin:0 0 1rem;color:var(--accent);font-size:1.4rem}
+.auth-card input{
+  width:100%;padding:.7rem .9rem;margin:.35rem 0;
+  background:var(--input-bg);border:1px solid var(--border);
+  color:var(--text);border-radius:10px;box-sizing:border-box;font-size:.95rem;
+}
+.auth-card input:focus{outline:none;border-color:var(--accent)}
+.auth-card button{
+  width:100%;padding:.8rem;background:var(--accent);color:#fff;border:0;
+  border-radius:10px;cursor:pointer;font-weight:600;font-size:1rem;margin-top:.5rem;
+}
+.auth-card .msg{
+  padding:.6rem .9rem;border-radius:8px;margin-bottom:.8rem;font-size:.88rem;
+  background:rgba(239,68,68,.12);color:var(--red-fg);border:1px solid rgba(239,68,68,.25);
+}
+.auth-card a{color:var(--accent);text-decoration:none}
+.auth-card .foot{font-size:.85rem;color:var(--muted);margin-top:1rem;text-align:center}
+.auth-brand{display:flex;align-items:center;gap:.7rem;justify-content:center;margin-bottom:1.2rem}
+.auth-brand-mark{
+  width:44px;height:44px;border-radius:12px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  display:flex;align-items:center;justify-content:center;
+  font-weight:800;color:#fff;font-size:1.2rem;
+}
+.auth-brand-name{font-weight:700;font-size:1.1rem;color:var(--text)}
+.auth-brand-name small{display:block;font-weight:400;color:var(--muted);font-size:.72rem}
+.auth-theme{
+  position:fixed;top:1rem;right:1rem;
+  background:var(--surface);border:1px solid var(--border);color:var(--text);
+  width:40px;height:40px;border-radius:10px;cursor:pointer;font-size:1.1rem;
+}
+</style>
+</head>
+<body class="afl-auth">
+
+<button id="themeToggle" class="auth-theme" title="Theme">☾</button>
+
+<form class="auth-card" method="post" autocomplete="off">
+  <div class="auth-brand">
+    <div class="auth-brand-mark">A</div>
+    <div class="auth-brand-name">Aflathoon<small>Exchange Platform</small></div>
+  </div>
+  <h2>Create account</h2>
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}{% for m in messages %}<div class="msg">{{ m }}</div>{% endfor %}{% endif %}
+  {% endwith %}
+  <input name="username" placeholder="Username" required autofocus>
+  <input name="email" type="email" placeholder="Email" required>
+  <input name="password" type="password" placeholder="Password (min 10 characters)" required minlength="10">
+  <button>Register</button>
+  <div class="foot">Already have an account? <a href="/auth/login">Sign in</a></div>
+</form>
+
+<script>
+(function(){
+  function currentTheme(){
+    var m = document.cookie.match(/(?:^|; )afl_theme=([^;]+)/);
+    return m ? decodeURIComponent(m[1]) : 'dark';
+  }
+  function cycle(){
+    var order = ['dark','light','auto'];
+    var cur = currentTheme();
+    var next = order[(order.indexOf(cur)+1) % order.length];
+    document.cookie = 'afl_theme=' + encodeURIComponent(next) + '; path=/; max-age=' + (60*60*24*365) + '; SameSite=Lax';
+    apply(next);
+  }
+  function apply(t){
+    document.documentElement.setAttribute('data-theme', t);
+    var icons = {dark:'☾', light:'☀', auto:'◐'};
+    var el = document.getElementById('themeToggle');
+    if (el) el.textContent = icons[t] || '☾';
+  }
+  apply(currentTheme());
+  var btn = document.getElementById('themeToggle');
+  if (btn) btn.addEventListener('click', cycle);
+  requestAnimationFrame(function(){
+    document.documentElement.classList.remove('no-transition');
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Exchange — Aflathoon{% endblock %}
+{% block search_placeholder %}Search currencies, pairs…{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center">
+  <h1 class="afl-page-title">Exchange</h1>
+  <span id="srcBadge" class="afl-status staged">loading…</span>
+</div>
+
+<div class="afl-card" style="max-width:760px">
+  <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
+    <select id="fc" class="afl-in">
+      <option>USD</option><option>EUR</option><option>GBP</option><option>JPY</option>
+      <option>CHF</option><option>AUD</option><option>CAD</option><option>CNY</option>
+      <option>BTC</option><option>ETH</option><option>XAU</option>
+      <option>WTI</option><option>BRENT</option><option>NG</option>
+    </select>
+    <span style="color:var(--muted)">→</span>
+    <select id="tc" class="afl-in">
+      <option>EUR</option><option>USD</option><option>GBP</option><option>JPY</option>
+      <option>CHF</option><option>AUD</option><option>CAD</option><option>CNY</option>
+      <option>BTC</option><option>ETH</option><option>XAU</option>
+      <option>WTI</option><option>BRENT</option><option>NG</option>
+    </select>
+  </div>
+  <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-top:.6rem">
+    <input id="amt" type="number" value="1000" step="0.01" class="afl-in" style="width:200px">
+    <button class="afl-btn" onclick="convert()">Convert</button>
+    <button id="bookBtn" class="afl-btn secondary" onclick="book()" disabled>Book trade</button>
+  </div>
+
+  <div class="result" id="result" style="margin-top:1rem"></div>
+  <div id="bookingMsg"></div>
+</div>
+
+<div class="afl-card" style="max-width:760px">
+  <h3 class="afl-h3">Your recent transactions</h3>
+  {% if recent %}
+    <table class="afl-table">
+      <tr><th>Reference</th><th>Pair</th><th>Amount</th><th>Rate</th><th>Status</th><th>When</th></tr>
+      {% for t in recent %}
+      <tr>
+        <td>{{ t.reference }}</td>
+        <td>{{ t.from_currency }} → {{ t.to_currency }}</td>
+        <td>{{ t.from_amount }} {{ t.from_currency }}</td>
+        <td>{{ t.customer_rate }}</td>
+        <td><span class="afl-status {{ t.status.value }}">{{ t.status.value }}</span></td>
+        <td>{{ t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p style="color:var(--muted);margin:0">No transactions yet. Convert an amount and click <strong>Book trade</strong> to create your first one.</p>
+  {% endif %}
+</div>
+
+<style>
+#result .row{display:flex;justify-content:space-between;padding:.55rem 0;border-bottom:1px solid var(--border-2)}
+#result .row:last-child{border-bottom:0}
+#result .k{color:var(--muted)}
+#result .v{color:var(--text);font-weight:600}
+#result .big{font-size:1.6rem;color:var(--accent)}
+#result .notice{background:rgba(111,140,255,.1);border-left:3px solid var(--accent);padding:.7rem 1rem;border-radius:6px;font-size:.85rem;color:var(--text-2);margin-top:1rem}
+.ok-msg{background:rgba(34,197,94,.12);border-left:3px solid #22c55e;padding:.7rem 1rem;border-radius:6px;margin-top:1rem;color:var(--text)}
+.err-msg{background:rgba(239,68,68,.12);border-left:3px solid #ef4444;padding:.7rem 1rem;border-radius:6px;margin-top:1rem;color:var(--text)}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let lastQuote = null;
+
+async function refreshSource() {
+  try {
+    const j = await (await fetch('/exchange/source')).json();
+    const el = document.getElementById('srcBadge');
+    el.className = 'afl-status ' + (j.source === 'live' ? 'confirmed' : j.source === 'cache' ? 'staged' : 'failed');
+    let label = j.source.toUpperCase();
+    if (j.last_success_seconds_ago !== null) label += ` · ${j.last_success_seconds_ago}s ago`;
+    el.textContent = label;
+  } catch(e) {}
+}
+
+async function convert() {
+  const r = await fetch('/exchange/convert', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      from_currency: document.getElementById('fc').value,
+      to_currency:   document.getElementById('tc').value,
+      amount:        parseFloat(document.getElementById('amt').value),
+    })
+  });
+  const j = await r.json();
+  const out = document.getElementById('result');
+  const msg = document.getElementById('bookingMsg');
+  msg.innerHTML = '';
+
+  if (j.error) {
+    out.innerHTML = `<div class="row"><span class="k">Error</span><span class="v">${j.error}</span></div>`;
+    document.getElementById('bookBtn').disabled = true;
+    return;
+  }
+
+  out.innerHTML = `
+    <div class="row"><span class="k">You send</span><span class="v">${j.amount.toFixed(2)} ${j.from}</span></div>
+    <div class="row"><span class="k">Rate</span><span class="v">1 ${j.from} = ${j.rate.toFixed(6)} ${j.to}</span></div>
+    <div class="row"><span class="k">Platform spread (6.5%)</span><span class="v">${j.platform_fee.toFixed(4)} ${j.to}</span></div>
+    <div class="row"><span class="k">You receive</span><span class="v big">${j.net_to_customer.toFixed(2)} ${j.to}</span></div>
+    <div class="notice">${j.note}</div>
+  `;
+
+  lastQuote = { from_currency: j.from, to_currency: j.to, amount: j.amount };
+  document.getElementById('bookBtn').disabled = false;
+}
+
+async function book() {
+  if (!lastQuote) return;
+  const btn = document.getElementById('bookBtn');
+  btn.disabled = true;
+  btn.textContent = 'Booking…';
+
+  const r = await fetch('/exchange/book', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(lastQuote)
+  });
+  const j = await r.json();
+  const msg = document.getElementById('bookingMsg');
+
+  if (j.error) {
+    msg.innerHTML = `<div class="err-msg">⚠ ${j.error}</div>`;
+  } else {
+    msg.innerHTML = `
+      <div class="ok-msg">
+        ✓ Booked <strong>${j.reference}</strong> — status <strong>${j.status}</strong><br>
+        ${j.amount.toFixed(2)} ${j.from} → ${j.net_to_customer.toFixed(2)} ${j.to}
+        (margin ${j.margin_amount.toFixed(4)} ${j.to})
+      </div>
+    `;
+    setTimeout(() => location.reload(), 900);
+  }
+  btn.textContent = 'Book trade';
+  btn.disabled = false;
+}
+
+refreshSource();
+setInterval(refreshSource, 15000);
+</script>
+{% endblock %}
