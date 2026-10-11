@@ -4,7 +4,6 @@ import os
 import sys
 from dotenv import load_dotenv
 
-# Load .env before importing the app factory
 load_dotenv()
 
 from app import create_app
@@ -16,6 +15,7 @@ def _port_is_free(port: int) -> bool:
     import socket
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(('127.0.0.1', port))
         return True
     except OSError:
@@ -25,15 +25,27 @@ def _port_is_free(port: int) -> bool:
 
 
 def _pick_port() -> int:
-    """Use FLASK_PORT if free, otherwise find a free port above 9100."""
-    preferred = int(os.getenv('FLASK_PORT', '0') or 0)
-    if preferred and _port_is_free(preferred):
+    """Use FLASK_PORT if free, otherwise scan upward from FLASK_PORT+1."""
+    preferred = int(os.getenv('FLASK_PORT', '9105') or 9105)
+
+    if _port_is_free(preferred):
         return preferred
-    if preferred:
-        print(f"[app] port {preferred} is in use, picking a free one...")
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'scripts'))
-    from find_free_port import find_free_port
-    return find_free_port(start=9100, end=9999)
+
+    # Try up to 30 ports above the preferred one
+    for offset in range(1, 31):
+        candidate = preferred + offset
+        if _port_is_free(candidate):
+            print(f"[app] port {preferred} busy, using {candidate} instead")
+            return candidate
+
+    # Last resort: OS-assigned ephemeral
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(('', 0))
+    p = s.getsockname()[1]
+    s.close()
+    print(f"[app] no ports near {preferred} free, using ephemeral {p}")
+    return p
 
 
 if __name__ == '__main__':
