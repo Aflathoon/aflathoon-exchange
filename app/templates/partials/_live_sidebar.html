@@ -3,24 +3,7 @@
      Loaded via fetch() so it never slows the initial page render.
      ============================================================ -->
 <div id="live-sidebar">
-  <div class="afl-card" id="ticker-prices">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
-      <div class="afl-k">Live Crypto</div>
-      <span id="prices-source" class="afl-pill muted" style="font-size:.68rem">loading…</span>
-    </div>
-    <div id="prices-list">
-      <div style="color:var(--muted);font-size:.85rem;padding:.6rem 0">Fetching prices…</div>
-    </div>
-  </div>
-
-  <div class="afl-card" id="market-global" style="display:none">
-    <div class="afl-k" style="margin-bottom:.6rem">Market Overview</div>
-    <div id="global-stats"></div>
-  </div>
-
-  <div class="afl-card" id="trending-card" style="display:none">
-    <div class="afl-k" style="margin-bottom:.6rem">🔥 Trending</div>
-    <div id="trending-list"></div>
+  
   </div>
 
   <div class="afl-card" id="news-card">
@@ -30,7 +13,24 @@
     </div>
     <div id="news-list">
       <div style="color:var(--muted);font-size:.85rem;padding:.6rem 0">Loading…</div>
+    </div><div class="afl-card" id="ticker-prices">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
+      <div class="afl-k">Live Crypto</div>
+      <span id="prices-source" class="afl-pill muted" style="font-size:.68rem">loading…</span>
     </div>
+    <div id="prices-list">
+      <div style="color:var(--muted);font-size:.85rem;padding:.6rem 0">Fetching prices…</div>
+    </div><div class="afl-card" id="market-global" style="display:none">
+    <div class="afl-k" style="margin-bottom:.6rem">Market Overview</div>
+    <div id="global-stats"></div>
+  </div><div class="afl-card" id="trending-card" style="display:none">
+    <div class="afl-k" style="margin-bottom:.6rem">🔥 Trending</div>
+    <div id="trending-list"></div>
+  </div>
+
+  
+
+  
     <div id="news-empty" style="display:none;color:var(--muted);font-size:.8rem;padding:.6rem 0">
       No headlines. Set <code>NEWSAPI_KEY</code> in <code>.env</code> to enable vetted news.<br>
       <span style="color:var(--accent)">Get a free key: newsapi.org</span>
@@ -140,10 +140,13 @@
         emptyEl.style.display = 'block';
         return;
       }
-      listEl.innerHTML = items.slice(0, 6).map(a => `
-        <a href="${esc(a.url)}" target="_blank" rel="noopener" style="display:block;padding:.5rem 0;border-bottom:1px solid var(--border-2);text-decoration:none">
-          <div style="color:var(--text);font-size:.83rem;font-weight:500;line-height:1.35">${esc(a.title)}</div>
-          <div style="color:var(--muted);font-size:.7rem;margin-top:.2rem">${esc(a.source || '')} · ${a.published_at ? new Date(a.published_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : ''}</div>
+      listEl.innerHTML = items.slice(0, 5).map(a => `
+        <a href="${esc(a.url)}" target="_blank" rel="noopener" style="display:flex;gap:.6rem;padding:.6rem 0;border-bottom:1px solid var(--border-2);text-decoration:none;align-items:flex-start">
+          ${a.image ? `<img src="${esc(a.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" style="width:56px;height:56px;object-fit:cover;border-radius:8px;flex-shrink:0;background:var(--surface-2)" onerror="this.replaceWith(Object.assign(document.createElement('div'),{style:'width:56px;height:56px;border-radius:8px;background:var(--surface-2);flex-shrink:0'}))">` : ''}
+          <div style="flex:1;min-width:0">
+            <div style="color:var(--text);font-size:.82rem;font-weight:500;line-height:1.35;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(a.title)}</div>
+            <div style="color:var(--muted);font-size:.7rem;margin-top:.25rem">${esc(a.source || '')}${a.published_at ? ' · ' + new Date(a.published_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : ''}</div>
+          </div>
         </a>
       `).join('');
     } catch (e) {
