@@ -66,8 +66,11 @@ def log(action, entity=None, entity_type=None, entity_id=None,
         )
         db.session.add(row)
         db.session.commit()
-    except Exception:
-        # Never let audit break the caller
+    except Exception as e:
+        # AUDIT DEBUG - surface the error so we can see it
+        import traceback, sys
+        print(f"[AUDIT] FAILED to write audit row for {action}: {e}", file=sys.stderr)
+        traceback.print_exc()
         try:
             db.session.rollback()
         except Exception:

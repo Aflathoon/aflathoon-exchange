@@ -31,6 +31,7 @@
     <a href="/exchange/"         class="{{ 'active' if path.startswith('/exchange') }}">   <span class="ico">⇄</span> Exchange</a>
     <a href="/logistics/"        class="{{ 'active' if path.startswith('/logistics') }}">  <span class="ico">🚚</span> Logistics</a>
     <a href="/compliance/"       class="{{ 'active' if path.startswith('/compliance') }}"> <span class="ico">🛡</span> Compliance</a>
+    <a href="/kyc/" class="{{ 'active' if path.startswith('/kyc') }}"><span class="ico">🪪</span> KYC</a>
     {% if current_user.is_authenticated and current_user.is_admin %}
     <hr>
     <a href="/admin/"            class="{{ 'active' if path == '/admin/' }}">          <span class="ico">▦</span> Dashboard</a>
@@ -38,6 +39,7 @@
     <a href="/admin/positions"   class="{{ 'active' if path.startswith('/admin/positions') }}"> <span class="ico">↗</span> Positions</a>
     <a href="/admin/users"       class="{{ 'active' if path.startswith('/admin/users') }}">     <span class="ico">👥</span> Users</a>
     <a href="/admin/companies"     class="{{ 'active' if path.startswith('/admin/companies') }}">   <span class="ico">🏢</span> Companies</a>
+    <a href="/admin/kyc" class="{{ 'active' if path.startswith('/admin/kyc') }}"><span class="ico">🪪</span> KYC</a>
     <a href="/admin/audit" class="{{ 'active' if path.startswith('/admin/audit') }}"><span class="ico">📋</span> Audit</a>
     <a href="/admin/assistant" class="{{ 'active' if path.startswith('/admin/assistant') }}"><span class="ico">🤖</span> Assistant</a>
     {% endif %}

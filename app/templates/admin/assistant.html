@@ -50,9 +50,21 @@
             </div>
             <div style="color:var(--text-2);font-size:.87rem;margin-top:.3rem">{{ f.detail }}</div>
           </div>
-          {% if f.action_url %}
-            <a href="{{ f.action_url }}" class="afl-btn" style="text-decoration:none;padding:.5rem 1rem;white-space:nowrap">{{ f.action_label or 'Open' }} →</a>
-          {% endif %}
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            {% if f.action_kind and f.fix_label %}
+              <button type="button"
+                      class="afl-btn"
+                      data-fix-kind="{{ f.action_kind }}"
+                      data-fix-payload="{{ f.action_payload | tojson | forceescape }}"
+                      data-fix-confirm="{{ f.fix_confirm }}"
+                      style="padding:.5rem 1rem;white-space:nowrap">
+                {{ f.fix_label }}
+              </button>
+            {% endif %}
+            {% if f.action_url %}
+              <a href="{{ f.action_url }}" class="afl-btn secondary" style="text-decoration:none;padding:.5rem 1rem;white-space:nowrap">{{ f.action_label or 'Open' }} →</a>
+            {% endif %}
+          </div>
         </div>
       </div>
     {% endfor %}
@@ -61,4 +73,56 @@
     <p style="color:var(--green);text-align:center;padding:2rem">✓ No findings — everything looks healthy.</p>
   {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  'use strict';
+  console.log('[assistant] handler script loaded');
+
+  document.addEventListener('click', async function (ev) {
+    var btn = ev.target.closest('button[data-fix-kind]');
+    if (!btn) return;
+    ev.preventDefault();
+
+    var kind = btn.getAttribute('data-fix-kind');
+    var rawPayload = btn.getAttribute('data-fix-payload') || '{}';
+    var confirmMsg = btn.getAttribute('data-fix-confirm') || '';
+
+    var payload = {};
+    try { payload = JSON.parse(rawPayload); } catch (e) { payload = {}; }
+
+    console.log('[assistant] click:', kind, payload);
+
+    if (confirmMsg && !confirm(confirmMsg)) {
+      console.log('[assistant] cancelled');
+      return;
+    }
+
+    var orig = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Working…';
+
+    try {
+      var r = await fetch('/admin/api/assistant/run', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({kind: kind, payload: payload})
+      });
+      console.log('[assistant] HTTP', r.status);
+      var j = await r.json().catch(function () { return {}; });
+      console.log('[assistant] body', j);
+      alert(j.message || (j.ok ? 'Done' : 'Failed'));
+      if (j.ok) location.reload();
+    } catch (e) {
+      console.error('[assistant] error', e);
+      alert('Error: ' + e);
+    }
+
+    btn.disabled = false;
+    btn.textContent = orig;
+  });
+})();
+</script>
 {% endblock %}

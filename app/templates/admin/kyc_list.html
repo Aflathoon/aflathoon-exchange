@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}KYC Review — Aflathoon{% endblock %}
+{% block content %}
+<h1 class="afl-page-title">KYC Submissions</h1>
+
+<div class="tabs" style="margin-bottom:1rem">
+  <a href="/admin/">Overview</a>
+  <a href="/admin/blotter">Blotter</a>
+  <a href="/admin/positions">Positions</a>
+  <a href="/admin/users">Users</a>
+  <a href="/admin/companies">Companies</a>
+  <a class="active" href="/admin/kyc">KYC</a>
+  <a href="/admin/audit">Audit</a>
+  <a href="/admin/assistant">Assistant</a>
+</div>
+
+<div class="tabs" style="margin-bottom:.8rem">
+  <a class="{{ 'active' if status_filter == 'pending' }}"  href="?status=pending">Pending ({{ counts.pending }})</a>
+  <a class="{{ 'active' if status_filter == 'approved' }}" href="?status=approved">Approved ({{ counts.approved }})</a>
+  <a class="{{ 'active' if status_filter == 'rejected' }}" href="?status=rejected">Rejected ({{ counts.rejected }})</a>
+  <a class="{{ 'active' if status_filter == 'all' }}"      href="?status=all">All ({{ counts.all }})</a>
+</div>
+
+<div class="afl-card">
+  <table class="afl-table">
+    <tr><th>ID</th><th>User</th><th>Legal name</th><th>Tier</th><th>Doc</th><th>Submitted</th><th>Status</th><th></th></tr>
+    {% for r in rows %}
+    <tr>
+      <td>{{ r.id }}</td>
+      <td>{{ r.user.username if r.user else r.user_id }}</td>
+      <td>{{ r.legal_name or '—' }}</td>
+      <td>{{ r.tier_requested }}</td>
+      <td>{{ r.doc_type or '—' }}</td>
+      <td>{{ r.submitted_at.strftime('%Y-%m-%d %H:%M') if r.submitted_at else '—' }}</td>
+      <td><span class="afl-status {% if r.status=='approved' %}confirmed{% elif r.status=='pending' %}staged{% else %}failed{% endif %}">{{ r.status }}</span></td>
+      <td><a class="afl-link" href="/admin/kyc/{{ r.id }}">Review →</a></td>
+    </tr>
+    {% endfor %}
+    {% if not rows %}<tr><td colspan="8" class="afl-empty">No submissions in this state</td></tr>{% endif %}
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}KYC #{{ sub.id }} — Aflathoon{% endblock %}
+{% block content %}
+<a href="/admin/kyc" style="color:var(--accent);text-decoration:none;font-size:.85rem">← KYC submissions</a>
+<h1 class="afl-page-title" style="margin-top:.3rem">Submission #{{ sub.id }}</h1>
+
+{% with messages = get_flashed_messages() %}
+  {% if messages %}{% for m in messages %}<div class="afl-card" style="border-left:3px solid var(--green);padding:.7rem 1rem;margin-bottom:1rem">{{ m }}</div>{% endfor %}{% endif %}
+{% endwith %}
+
+<div class="afl-row afl-row-split" style="max-width:1200px">
+  <div>
+    <div class="afl-card">
+      <h3 class="afl-h3">Applicant</h3>
+      <table class="afl-table">
+        <tr><td class="afl-k">User</td><td>{{ sub.user.username if sub.user else sub.user_id }} (ID {{ sub.user_id }})</td></tr>
+        <tr><td class="afl-k">Legal name</td><td>{{ sub.legal_name or '—' }}</td></tr>
+        <tr><td class="afl-k">Date of birth</td><td>{{ sub.date_of_birth or '—' }}</td></tr>
+        <tr><td class="afl-k">Nationality</td><td>{{ sub.nationality or '—' }}</td></tr>
+        <tr><td class="afl-k">Document</td><td>{{ sub.doc_type or '—' }} · {{ sub.doc_number or '—' }}</td></tr>
+        <tr><td class="afl-k">Tier requested</td><td>{{ sub.tier_requested }}</td></tr>
+        <tr><td class="afl-k">Submitted</td><td>{{ sub.submitted_at.strftime('%Y-%m-%d %H:%M') if sub.submitted_at else '—' }}</td></tr>
+        <tr><td class="afl-k">Status</td><td><span class="afl-status {% if sub.status=='approved' %}confirmed{% elif sub.status=='pending' %}staged{% else %}failed{% endif %}">{{ sub.status }}</span></td></tr>
+      </table>
+    </div>
+
+    <div class="afl-card">
+      <h3 class="afl-h3">Uploaded files</h3>
+      <table class="afl-table">
+        <tr><th>Type</th><th>Path</th></tr>
+        <tr><td>ID front</td><td>{{ sub.id_front_path or '—' }}</td></tr>
+        <tr><td>ID back</td><td>{{ sub.id_back_path or '—' }}</td></tr>
+        <tr><td>Selfie</td><td>{{ sub.selfie_path or '—' }}</td></tr>
+        <tr><td>Proof of address</td><td>{{ sub.proof_of_address_path or '—' }}</td></tr>
+      </table>
+      <p style="color:var(--muted);font-size:.8rem;margin-top:.6rem">
+        Files live under <code>compliance/kyc_uploads/</code> on the server. Preview in your file manager if needed.
+      </p>
+    </div>
+  </div>
+
+  <div>
+    {% if sub.status == 'pending' %}
+    <div class="afl-card">
+      <h3 class="afl-h3">Decision</h3>
+      <form method="post" action="/admin/kyc/{{ sub.id }}/approve" style="margin-bottom:.8rem">
+        <select name="tier" class="afl-in" style="width:100%;margin-bottom:.4rem">
+          <option value="1" {% if sub.tier_requested == 1 %}selected{% endif %}>Tier 1 — basic limits</option>
+          <option value="2" {% if sub.tier_requested == 2 %}selected{% endif %}>Tier 2 — full trading</option>
+        </select>
+        <button class="afl-btn" style="width:100%;background:var(--green)">✓ Approve KYC</button>
+      </form>
+      <form method="post" action="/admin/kyc/{{ sub.id }}/reject">
+        <textarea name="notes" placeholder="Rejection reason (sent to user)" rows="3" class="afl-in" style="width:100%;margin-bottom:.4rem"></textarea>
+        <button class="afl-btn" style="width:100%;background:var(--red)">✗ Reject</button>
+      </form>
+    </div>
+    {% endif %}
+
+    {% if sub.reviewer_notes %}
+    <div class="afl-card">
+      <h3 class="afl-h3">Reviewer notes</h3>
+      <p style="color:var(--text-2);font-size:.85rem">{{ sub.reviewer_notes }}</p>
+      {% if sub.reviewed_at %}
+      <p style="color:var(--muted);font-size:.78rem;margin-top:.4rem">Reviewed {{ sub.reviewed_at.strftime('%Y-%m-%d %H:%M') }}</p>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

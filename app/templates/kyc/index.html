@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Identity Verification — Aflathoon{% endblock %}
+{% block search_placeholder %}KYC status{% endblock %}
+
+{% block content %}
+<h1 class="afl-page-title">Identity Verification (KYC)</h1>
+
+<div class="afl-card" style="max-width:760px">
+  <p style="color:var(--text-2);line-height:1.6;margin-top:0">
+    To trade, receive payouts, and unlock higher limits, verify your identity.
+    Documents are stored privately and only visible to compliance staff.
+  </p>
+
+  {% if last %}
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:.7rem 1rem;background:var(--surface-2);border-radius:10px;border-left:4px solid
+      {% if last.status == 'approved' %}var(--green){% elif last.status == 'pending' %}var(--amber){% else %}var(--red){% endif %}">
+      <div>
+        <div style="font-weight:600">Last submission: <span style="text-transform:uppercase;font-size:.85rem">{{ last.status }}</span></div>
+        <div style="color:var(--muted);font-size:.82rem">
+          Submitted {{ last.submitted_at.strftime('%Y-%m-%d %H:%M') if last.submitted_at else '—' }}
+          {% if last.reviewed_at %} · Reviewed {{ last.reviewed_at.strftime('%Y-%m-%d') }}{% endif %}
+        </div>
+        {% if last.reviewer_notes and last.status == 'rejected' %}
+          <div style="margin-top:.4rem;color:var(--red-fg);font-size:.85rem">Reason: {{ last.reviewer_notes }}</div>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+
+  {% if last and last.status == 'pending' %}
+    <p style="color:var(--amber);margin-top:1rem">Your submission is being reviewed. You'll be notified by email.</p>
+  {% elif last and last.status == 'approved' %}
+    <p style="color:var(--green);margin-top:1rem">✓ Your identity is verified. No further action needed.</p>
+  {% else %}
+    <h3 class="afl-h3" style="margin-top:1.4rem">Submit documents</h3>
+    <form method="post" enctype="multipart/form-data" style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem">
+      <input name="legal_name" placeholder="Legal name (as on ID)" required class="afl-in" style="grid-column:1/-1">
+      <input name="date_of_birth" type="date" required class="afl-in">
+      <input name="nationality" placeholder="Nationality" class="afl-in">
+      <select name="doc_type" class="afl-in">
+        <option value="passport">Passport</option>
+        <option value="national_id">National ID</option>
+        <option value="drivers_licence">Driver's licence</option>
+      </select>
+      <input name="doc_number" placeholder="Document number" class="afl-in">
+
+      <label style="grid-column:1/-1;margin-top:.4rem;color:var(--text-2);font-size:.85rem">ID document — front (required)</label>
+      <input type="file" name="id_front" accept="image/*,.pdf" required class="afl-in" style="grid-column:1/-1">
+
+      <label style="grid-column:1/-1;color:var(--text-2);font-size:.85rem">ID document — back (if applicable)</label>
+      <input type="file" name="id_back" accept="image/*,.pdf" class="afl-in" style="grid-column:1/-1">
+
+      <label style="grid-column:1/-1;color:var(--text-2);font-size:.85rem">Selfie holding your ID</label>
+      <input type="file" name="selfie" accept="image/*" class="afl-in" style="grid-column:1/-1">
+
+      <label style="grid-column:1/-1;color:var(--text-2);font-size:.85rem">Proof of address (utility bill, bank statement — last 3 months)</label>
+      <input type="file" name="proof_of_address" accept="image/*,.pdf" class="afl-in" style="grid-column:1/-1">
+
+      <button class="afl-btn" style="grid-column:1/-1;margin-top:.5rem">Submit for review</button>
+    </form>
+    <p style="color:var(--muted);font-size:.78rem;margin-top:.8rem">
+      Accepted formats: PDF, JPG, PNG. Max 8 MB per file. Your data is encrypted at rest and never shared with third parties.
+    </p>
+  {% endif %}
+</div>
+{% endblock %}

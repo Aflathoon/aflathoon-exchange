@@ -18,7 +18,7 @@ SEVERITY_ORDER = {'critical': 0, 'warning': 1, 'info': 2}
 @dataclass
 class Finding:
     key: str
-    severity: str            # critical / warning / info
+    severity: str
     title: str
     detail: str
     action_label: str = ''
@@ -26,6 +26,10 @@ class Finding:
     count: int = 1
     entity_type: str = ''
     entity_id: int = 0
+    action_kind: str = ''
+    action_payload: dict = field(default_factory=dict)
+    fix_label: str = ''
+    fix_confirm: str = ''
 
     def to_dict(self):
         return asdict(self)
@@ -75,6 +79,8 @@ def check_unverified_companies():
         return []
     return [Finding(
         key='unverified_companies',
+        action_kind='list_company_ids',
+        fix_label='→ Open each',
         severity='warning',
         title=f'{len(stale)} unverified company account(s)',
         detail='Pending for over 48 hours. Review to unlock them.',
@@ -97,6 +103,9 @@ def check_unverified_users():
         return []
     return [Finding(
         key='unverified_users',
+        action_kind='resend_verification_all',
+        fix_label='📧 Resend to all',
+        fix_confirm='Send verification emails to all unverified users?',
         severity='warning',
         title=f'{len(stale)} user(s) unverified after 24h',
         detail='Email verification pending. Resend or manually verify.',
@@ -115,6 +124,9 @@ def check_admins_without_2fa():
         return []
     return [Finding(
         key='admins_no_2fa',
+        action_kind='notify_admins_2fa',
+        fix_label='🔔 Send 2FA reminder',
+        fix_confirm='Email every admin without 2FA?',
         severity='critical',
         title=f'{len(missing)} admin account(s) without 2FA',
         detail='Every admin should have two-factor authentication enabled.',
@@ -177,6 +189,9 @@ def check_stale_rate_source():
     if info.get('source') == 'fallback':
         return [Finding(
             key='rates_fallback',
+            action_kind='reset_rate_cache',
+            fix_label='↻ Refresh rates',
+            fix_confirm='Clear rate cache and force a fresh fetch?',
             severity='warning',
             title='Rates running on fallback',
             detail='Live API key not configured or unreachable. Quotes may diverge from market.',
@@ -195,6 +210,9 @@ def check_missing_backups():
     if not files:
         return [Finding(
             key='no_backups',
+            action_kind='run_backup',
+            fix_label='💾 Run first backup',
+            fix_confirm='Run a fresh database backup now?',
             severity='critical',
             title='No database backups found',
             detail='Configure cron to run scripts/backup_db.sh daily.',
@@ -207,6 +225,9 @@ def check_missing_backups():
     if age_hours > 48:
         return [Finding(
             key='backup_stale',
+            action_kind='run_backup',
+            fix_label='💾 Run backup now',
+            fix_confirm='Run a fresh database backup now?',
             severity='critical',
             title=f'Latest backup is {age_hours}h old',
             detail='Expected daily backups. Check cron.',

@@ -3,7 +3,7 @@ from functools import wraps
 
 from flask import (Blueprint, render_template, jsonify, request,
                    redirect, url_for, flash)
-from flask_login import login_required, current_user
+from flask_login import current_user, login_required, current_user
 from sqlalchemy import func
 
 from app import db
@@ -539,3 +539,199 @@ def assistant_scan():
         'summary': s,
         'findings': [f.to_dict() for f in findings],
     })
+
+
+# =============================================================================
+# AI Assistant action runner
+# =============================================================================
+@admin_bp.route('/api/assistant/run', methods=['POST'])
+@admin_required
+def assistant_run():
+    from app.services import audit
+    from app.models.user import User
+
+    data = request.get_json(silent=True) or {}
+    kind = (data.get('kind') or '').strip()
+    payload = data.get('payload') or {}
+    result = {'ok': False, 'message': 'Unknown action.'}
+
+    if kind == 'resend_verification_all':
+        from app.routes.auth import send_verification_email
+        unverified = User.query.filter_by(email_verified=False).all()
+        sent = 0
+        for u in unverified:
+            try:
+                send_verification_email(u)
+                sent += 1
+            except Exception:
+                pass
+        result = {'ok': True, 'message': f'Sent verification emails to {sent} user(s).'}
+        audit.log('assistant.resend_verification_all',
+                  summary=f'Bulk resend verification: {sent} sent',
+                  after={'sent': sent, 'total': len(unverified)})
+
+    elif kind == 'notify_admins_2fa':
+        from app.services import email_sender
+        admins = User.query.filter_by(is_admin=True, is_active=True).all()
+        missing = [u for u in admins if not u.two_factor_enabled]
+        sent = 0
+        for u in missing:
+            try:
+                body = (
+                    f"Hi {u.username},\n\n"
+                    "As an admin at Aflathoon Exchange, please enable two-factor "
+                    "authentication on your account for security.\n\n"
+                    "Open your 2FA settings here:\n"
+                    "http://127.0.0.1:9105/auth/2fa/manage\n\n"
+                    "- Aflathoon Exchange\n"
+                )
+                email_sender.send_email(
+                    u.email,
+                    'Enable 2FA on your Aflathoon admin account',
+                    body,
+                )
+                sent += 1
+            except Exception:
+                pass
+        result = {'ok': True, 'message': f'2FA reminder sent to {sent} admin(s).'}
+        audit.log('assistant.notify_admins_2fa',
+                  summary=f'Notified {sent} admin(s) to enable 2FA',
+                  after={'sent': sent})
+
+    elif kind == 'run_backup':
+        import subprocess, os
+        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        script = os.path.join(root, 'scripts', 'backup_db.sh')
+        if not os.path.exists(script):
+            result = {'ok': False, 'message': f'Backup script not found: {script}'}
+        else:
+            try:
+                proc = subprocess.run([script], capture_output=True, text=True, timeout=60)
+                out = (proc.stdout or '').strip().splitlines()
+                last = out[-1] if out else 'done'
+                result = {'ok': proc.returncode == 0,
+                          'message': f'Backup: {last}' if proc.returncode == 0 else f'Failed: {(proc.stderr or "")[-200:]}'}
+                audit.log('assistant.run_backup',
+                          summary=f'Manual backup via assistant (exit {proc.returncode})',
+                          after={'output': last[:200]})
+            except Exception as e:
+                result = {'ok': False, 'message': f'Error: {e}'}
+
+    elif kind == 'reset_rate_cache':
+        try:
+            from app.services.rate_engine import get_engine
+            eng = get_engine()
+            # Safely clear the cache whatever it's called internally
+            cleared = 0
+            for attr in ('_cache', '_raw_rates'):
+                obj = getattr(eng, attr, None)
+                if isinstance(obj, dict):
+                    cleared += len(obj)
+                    obj.clear()
+            # If the engine has a public refresh method, call it
+            if hasattr(eng, '_refresh_once'):
+                try:
+                    eng._refresh_once()
+                except Exception:
+                    pass
+            result = {'ok': True, 'message': f'Rate cache cleared ({cleared} entries).'}
+            audit.log('assistant.reset_rate_cache', summary='Rate cache cleared')
+        except Exception as e:
+            result = {'ok': False, 'message': f'Error: {e}'}
+
+    elif kind == 'list_company_ids':
+        ids = payload.get('ids') or []
+        result = {'ok': True, 'message': f'{len(ids)} companies pending. Open each from Companies tab.'}
+
+    else:
+        result = {'ok': False, 'message': f'Unknown action kind: {kind}'}
+
+    return jsonify(result)
+
+
+# =============================================================================
+# KYC submission review
+# =============================================================================
+@admin_bp.route('/kyc')
+@admin_required
+def kyc_review_list():
+    from app.models.kyc_submission import KYCSubmission
+    status_filter = request.args.get('status', 'pending')
+    page = max(1, int(request.args.get('page', '1')))
+    per_page = 25
+
+    q = KYCSubmission.query
+    if status_filter != 'all':
+        q = q.filter(KYCSubmission.status == status_filter)
+    q = q.order_by(KYCSubmission.submitted_at.desc())
+
+    total = q.count()
+    rows = q.offset((page - 1) * per_page).limit(per_page).all()
+
+    counts = {
+        'pending':  KYCSubmission.query.filter_by(status='pending').count(),
+        'approved': KYCSubmission.query.filter_by(status='approved').count(),
+        'rejected': KYCSubmission.query.filter_by(status='rejected').count(),
+        'all':      KYCSubmission.query.count(),
+    }
+    return render_template('admin/kyc_list.html',
+                           rows=rows, page=page, total=total,
+                           pages=(total + per_page - 1) // per_page,
+                           status_filter=status_filter, counts=counts)
+
+
+@admin_bp.route('/kyc/<int:sid>')
+@admin_required
+def kyc_review_detail(sid):
+    from app.models.kyc_submission import KYCSubmission
+    sub = KYCSubmission.query.get_or_404(sid)
+    return render_template('admin/kyc_detail.html', sub=sub)
+
+
+@admin_bp.route('/kyc/<int:sid>/approve', methods=['POST'])
+@admin_required
+def kyc_approve(sid):
+    from app.models.kyc_submission import KYCSubmission
+    from app.models.user import User
+    sub = KYCSubmission.query.get_or_404(sid)
+    tier = int(request.form.get('tier') or sub.tier_requested or 2)
+
+    sub.status = 'approved'
+    sub.reviewer_id = current_user.id
+    sub.reviewed_at = datetime.utcnow()
+    sub.tier_requested = tier
+
+    u = User.query.get(sub.user_id)
+    if u:
+        u.kyc_status = 'verified'
+        u.kyc_tier = tier
+    db.session.commit()
+
+    audit.log('kyc.approve', entity=sub,
+              summary=f'KYC approved for user {sub.user_id} (tier {tier})')
+    flash(f'KYC approved for user {sub.user_id}. Tier set to {tier}.')
+    return redirect(url_for('admin.kyc_review_list'))
+
+
+@admin_bp.route('/kyc/<int:sid>/reject', methods=['POST'])
+@admin_required
+def kyc_reject(sid):
+    from app.models.kyc_submission import KYCSubmission
+    from app.models.user import User
+    sub = KYCSubmission.query.get_or_404(sid)
+    notes = (request.form.get('notes') or '').strip() or 'Did not meet requirements'
+
+    sub.status = 'rejected'
+    sub.reviewer_id = current_user.id
+    sub.reviewed_at = datetime.utcnow()
+    sub.reviewer_notes = notes
+
+    u = User.query.get(sub.user_id)
+    if u:
+        u.kyc_status = 'rejected'
+    db.session.commit()
+
+    audit.log('kyc.reject', entity=sub,
+              summary=f'KYC rejected for user {sub.user_id}: {notes[:80]}')
+    flash('KYC rejected. User has been notified.')
+    return redirect(url_for('admin.kyc_review_list'))
