@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Alerts — Aflathoon{% endblock %}
+{% block content %}
+<h1 class="afl-page-title">Alerts &amp; Breaking News</h1>
+
+<div class="tabs" style="margin-bottom:1rem">
+  <a href="/admin/">Overview</a>
+  <a href="/admin/blotter">Blotter</a>
+  <a href="/admin/positions">Positions</a>
+  <a href="/admin/users">Users</a>
+  <a href="/admin/companies">Companies</a>
+  <a href="/admin/kyc">KYC</a>
+  <a class="active" href="/admin/alerts">Alerts</a>
+  <a href="/admin/audit">Audit</a>
+  <a href="/admin/assistant">Assistant</a>
+</div>
+
+{% with messages = get_flashed_messages() %}
+  {% if messages %}{% for m in messages %}<div class="afl-card" style="border-left:3px solid var(--green);padding:.7rem 1rem;margin-bottom:1rem">{{ m }}</div>{% endfor %}{% endif %}
+{% endwith %}
+
+<div class="afl-card">
+  <h3 class="afl-h3">Create alert</h3>
+  <p style="color:var(--muted);font-size:.85rem;margin-top:0">
+    Alerts appear as banners on every admin page. They can also be raised automatically by the AI Assistant and the price-spike monitor.
+  </p>
+  <form method="post" action="/admin/alerts/create" style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem">
+    <input name="title" placeholder="Title (required)" class="afl-in" style="grid-column:1/-1" required>
+    <textarea name="body" placeholder="Body (optional, shown under the title)" rows="2" class="afl-in" style="grid-column:1/-1"></textarea>
+    <select name="severity" class="afl-in">
+      <option value="info">ℹ Info</option>
+      <option value="warning">⚠ Warning</option>
+      <option value="critical">🚨 Critical / Breaking</option>
+    </select>
+    <input name="hours" type="number" value="24" min="0" max="720" placeholder="Expires in hours (0 = never)" class="afl-in">
+    <input name="link_url" placeholder="Link URL (optional)" class="afl-in">
+    <input name="link_label" placeholder="Link label (e.g. 'View')" class="afl-in">
+    <button class="afl-btn" style="grid-column:1/-1">Create alert</button>
+  </form>
+</div>
+
+<div class="afl-card" style="margin-top:1rem">
+  <h3 class="afl-h3">Active ({{ active|length }})</h3>
+  {% if active %}
+    <table class="afl-table">
+      <tr><th>Severity</th><th>Title</th><th>Created</th><th>Expires</th><th>Source</th><th></th></tr>
+      {% for a in active %}
+      <tr>
+        <td><span class="afl-status {% if a.severity == 'critical' %}failed{% elif a.severity == 'warning' %}staged{% else %}confirmed{% endif %}">{{ a.severity }}</span></td>
+        <td><strong>{{ a.title }}</strong>{% if a.body %}<div style="color:var(--muted);font-size:.78rem">{{ a.body[:100] }}</div>{% endif %}</td>
+        <td>{{ a.created_at.strftime('%Y-%m-%d %H:%M') if a.created_at else '—' }}</td>
+        <td>{% if a.expires_at %}{{ a.expires_at.strftime('%Y-%m-%d %H:%M') }}{% else %}never{% endif %}</td>
+        <td>{% if a.created_by_id %}{{ a.created_by.username if a.created_by else 'admin' }}{% else %}<span style="color:var(--accent)">system</span>{% endif %}</td>
+        <td>
+          <form method="post" action="/admin/alerts/{{ a.id }}/delete" style="display:inline">
+            <button class="afl-btn secondary" style="padding:.3rem .7rem;font-size:.78rem">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p style="color:var(--muted);text-align:center;padding:1.5rem">No active alerts.</p>
+  {% endif %}
+</div>
+
+<div class="afl-card" style="margin-top:1rem">
+  <h3 class="afl-h3">Recently expired (last {{ expired|length }})</h3>
+  {% if expired %}
+    <table class="afl-table">
+      <tr><th>Severity</th><th>Title</th><th>Created</th><th>Expired</th></tr>
+      {% for a in expired[:20] %}
+      <tr style="opacity:.65">
+        <td><span class="afl-status">{{ a.severity }}</span></td>
+        <td>{{ a.title }}</td>
+        <td>{{ a.created_at.strftime('%Y-%m-%d %H:%M') if a.created_at else '—' }}</td>
+        <td>{{ a.expires_at.strftime('%Y-%m-%d %H:%M') if a.expires_at else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p style="color:var(--muted);text-align:center;padding:1rem">No expired alerts yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

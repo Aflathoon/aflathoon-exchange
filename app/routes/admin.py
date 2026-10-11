@@ -735,3 +735,66 @@ def kyc_reject(sid):
               summary=f'KYC rejected for user {sub.user_id}: {notes[:80]}')
     flash('KYC rejected. User has been notified.')
     return redirect(url_for('admin.kyc_review_list'))
+
+
+# =============================================================================
+# Alerts management
+# =============================================================================
+@admin_bp.route('/alerts')
+@admin_required
+def alerts_page():
+    from app.models.alert import Alert
+    from datetime import datetime, timedelta
+
+    now = datetime.utcnow()
+    active = Alert.query.filter(
+        (Alert.expires_at.is_(None)) | (Alert.expires_at > now)
+    ).order_by(Alert.created_at.desc()).all()
+
+    expired = Alert.query.filter(
+        Alert.expires_at.isnot(None),
+        Alert.expires_at <= now,
+    ).order_by(Alert.created_at.desc()).limit(50).all()
+
+    return render_template('admin/alerts.html', active=active, expired=expired, now=now)
+
+
+@admin_bp.route('/alerts/create', methods=['POST'])
+@admin_required
+def alerts_create():
+    from app.models.alert import Alert
+    from datetime import datetime, timedelta
+
+    title = (request.form.get('title') or '').strip()
+    if not title:
+        flash('Title is required')
+        return redirect(url_for('admin.alerts_page'))
+
+    hours = int(request.form.get('hours') or 24)
+    a = Alert(
+        severity=request.form.get('severity') or 'info',
+        title=title[:200],
+        body=(request.form.get('body') or '').strip() or None,
+        link_url=(request.form.get('link_url') or '').strip() or None,
+        link_label=(request.form.get('link_label') or '').strip() or None,
+        created_by_id=current_user.id,
+        expires_at=datetime.utcnow() + timedelta(hours=hours) if hours > 0 else None,
+    )
+    db.session.add(a)
+    db.session.commit()
+    audit.log('alert.create', entity=a, summary=f"Created alert: {title[:60]}")
+    flash(f'Alert "{title[:40]}" created.')
+    return redirect(url_for('admin.alerts_page'))
+
+
+@admin_bp.route('/alerts/<int:aid>/delete', methods=['POST'])
+@admin_required
+def alerts_delete(aid):
+    from app.models.alert import Alert
+    a = Alert.query.get_or_404(aid)
+    title = a.title
+    db.session.delete(a)
+    db.session.commit()
+    audit.log('alert.delete', summary=f"Deleted alert: {title[:60]}")
+    flash('Alert deleted.')
+    return redirect(url_for('admin.alerts_page'))

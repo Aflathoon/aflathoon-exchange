@@ -122,6 +122,19 @@ def create_app(config_name: str = None):
         from app.services.csrf import inject_template_helper
         return inject_template_helper()
 
+    # --- Background engines ---
+    try:
+        from app.services import alert_engine
+        alert_engine.start_engine()
+    except Exception as _e:
+        print(f"[app] alert_engine start failed: {_e}", flush=True)
+
+    try:
+        from app.services import price_alerts
+        price_alerts.start_engine()
+    except Exception as _e:
+        print(f"[app] price_alerts start failed: {_e}", flush=True)
+
     # --- Create tables ---
     with app.app_context():
         # Import models so they register with SQLAlchemy metadata
