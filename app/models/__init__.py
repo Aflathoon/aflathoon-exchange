@@ -4,10 +4,11 @@ from app.models.transaction import Transaction, TransactionStatus, TransactionTy
 from app.models.rate import ExchangeRate
 from app.models.shipping import ShippingQuote, Carrier
 from app.models.license import License, Deadline, ComplianceDocument
+from app.models.email_token import EmailToken
 
 __all__ = [
     'User', 'Company',
     'Transaction', 'TransactionStatus', 'TransactionType',
     'ExchangeRate', 'ShippingQuote', 'Carrier',
-    'License', 'Deadline', 'ComplianceDocument',
+    'License', 'Deadline', 'ComplianceDocument', 'EmailToken',
 ]

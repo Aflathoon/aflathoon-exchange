@@ -440,20 +440,19 @@ details summary::-webkit-details-marker{display:none}
   display: block;
   width: 100%;
 }
-.pw-wrap > input[type="password"],
-.pw-wrap > input[type="text"] {
-  padding-right: 2.6rem !important;   /* leave room for the eye */
+.pw-wrap > input {
+  padding-right: 2.6rem !important;
   width: 100%;
 }
-.pw-toggle {
+button.pw-toggle, .pw-wrap button.pw-toggle, .auth-card button.pw-toggle {
   position: absolute;
   top: 50%;
   right: .5rem;
   transform: translateY(-50%);
-  background: transparent;
-  border: 0;
-  padding: .3rem;
-  margin: 0;
+  background: transparent !important;
+  border: 0 !important;
+  padding: .3rem !important;
+  margin: 0 !important;
   cursor: pointer;
   color: var(--muted);
   display: inline-flex;
@@ -461,15 +460,15 @@ details summary::-webkit-details-marker{display:none}
   justify-content: center;
   border-radius: 6px;
   line-height: 1;
-  width: auto;
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 0 !important;
+  box-shadow: none !important;
   transition: color .12s, background .12s;
 }
 .pw-toggle:hover {
   color: var(--accent);
-  background: var(--hover);
+  background: var(--hover) !important;
 }
 .pw-toggle:focus { outline: none; }
-.pw-toggle svg { display: block; }
-
-/* Inputs inside .pw-wrap don't need their own margin bottom doubling up */
-.pw-wrap + .pw-wrap { margin-top: 0; }
+.pw-toggle svg { display: block; pointer-events: none; }

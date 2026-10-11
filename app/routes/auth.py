@@ -326,3 +326,115 @@ def two_factor_regen_backup():
 # =============================================================================
 # We hook into Flask-Login's `session_protection` and rely on a
 # before_request to enforce 2FA for users who have it enabled.
+
+# =============================================================================
+# Email verification + password reset
+# =============================================================================
+import os
+from datetime import datetime
+from flask import current_app, url_for
+from app.models.email_token import EmailToken
+from app.services import email_sender, email_templates
+
+
+def _external_url(endpoint, **values):
+    try:
+        return url_for(endpoint, _external=True, **values)
+    except Exception:
+        base = os.getenv('PUBLIC_BASE_URL', 'http://127.0.0.1:9105')
+        path = url_for(endpoint, **values)
+        return base.rstrip('/') + path
+
+
+def send_verification_email(user):
+    ttl = int(os.getenv('EMAIL_VERIFY_TTL', '172800'))
+    token = EmailToken.new(user.id, 'email_verify', ttl)
+    db.session.add(token)
+    db.session.commit()
+    url = _external_url('auth.verify_email', token=token.token)
+    text, html = email_templates.verify_email(user, url)
+    try:
+        email_sender.send_email(user.email, 'Confirm your Aflathoon Exchange email', text, html)
+    except Exception as e:
+        current_app.logger.exception('Failed to send verification email: %s', e)
+    return token
+
+
+@auth_bp.route('/verify/<token>')
+def verify_email(token):
+    row = EmailToken.query.filter_by(token=token, purpose='email_verify').first()
+    if not row or not row.is_valid:
+        flash('Verification link is invalid or expired.')
+        return redirect(url_for('auth.resend_verification'))
+    user = User.query.get(row.user_id)
+    if not user:
+        flash('Account not found.')
+        return redirect(url_for('auth.login'))
+    if user.email_verified:
+        flash('Email already verified. You can log in.')
+        return redirect(url_for('auth.login'))
+    user.email_verified = True
+    user.email_verified_at = datetime.utcnow()
+    row.used_at = datetime.utcnow()
+    db.session.commit()
+    flash('Email verified. You can log in now.')
+    return redirect(url_for('auth.login'))
+
+
+@auth_bp.route('/resend-verification', methods=['GET', 'POST'])
+def resend_verification():
+    if request.method == 'POST':
+        email = (request.form.get('email') or '').strip().lower()
+        user = User.query.filter_by(email=email).first()
+        if user and not user.email_verified:
+            send_verification_email(user)
+        flash('If that email is registered and unverified, a new link has been sent.')
+        return redirect(url_for('auth.login'))
+    return render_template('auth/resend_verification.html')
+
+
+@auth_bp.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        email = (request.form.get('email') or '').strip().lower()
+        user = User.query.filter_by(email=email).first()
+        if user:
+            ttl = int(os.getenv('PASSWORD_RESET_TTL', '3600'))
+            token = EmailToken.new(user.id, 'password_reset', ttl)
+            db.session.add(token)
+            db.session.commit()
+            url = _external_url('auth.reset_password', token=token.token)
+            text, html = email_templates.password_reset(user, url)
+            try:
+                email_sender.send_email(user.email, 'Reset your Aflathoon Exchange password', text, html)
+            except Exception as e:
+                current_app.logger.exception('Failed to send reset email: %s', e)
+        flash('If that email is registered, a reset link has been sent.')
+        return redirect(url_for('auth.login'))
+    return render_template('auth/forgot_password.html')
+
+
+@auth_bp.route('/reset/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    row = EmailToken.query.filter_by(token=token, purpose='password_reset').first()
+    if not row or not row.is_valid:
+        flash('Reset link is invalid or expired.')
+        return redirect(url_for('auth.forgot_password'))
+    user = User.query.get(row.user_id)
+    if not user:
+        flash('Account not found.')
+        return redirect(url_for('auth.login'))
+    if request.method == 'POST':
+        new_pw = request.form.get('new_password') or ''
+        confirm = request.form.get('confirm_password') or ''
+        if len(new_pw) < 10:
+            flash('Password must be at least 10 characters.')
+        elif new_pw != confirm:
+            flash('Passwords do not match.')
+        else:
+            user.set_password(new_pw)
+            row.used_at = datetime.utcnow()
+            db.session.commit()
+            flash('Password reset successful. Please log in.')
+            return redirect(url_for('auth.login'))
+    return render_template('auth/reset_password.html', token=token)

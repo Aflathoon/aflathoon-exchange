@@ -33,6 +33,10 @@ class User(UserMixin, db.Model):
     kyc_tier = db.Column(db.Integer, default=0)
     lei_code = db.Column(db.String(20))
 
+    # Email verification
+    email_verified = db.Column(db.Boolean, default=False)
+    email_verified_at = db.Column(db.DateTime)
+
     # Two-factor authentication
     two_factor_secret = db.Column(db.String(64))              # TOTP secret (base32)
     two_factor_enabled = db.Column(db.Boolean, default=False)
