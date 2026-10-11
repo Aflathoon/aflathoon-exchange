@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Companies — Aflathoon{% endblock %}
+{% block search_placeholder %}Search companies…{% endblock %}
+
+{% block content %}
+<h1 class="afl-page-title">Companies</h1>
+
+<div class="tabs" style="margin-bottom:1rem">
+  <a href="/admin/">Overview</a>
+  <a href="/admin/blotter">Blotter</a>
+  <a href="/admin/positions">Positions</a>
+  <a href="/admin/users">Users</a>
+  <a class="active" href="/admin/companies">Companies</a>
+</div>
+
+<div class="afl-row afl-row-3" style="margin-bottom:1rem">
+  <div class="afl-card">
+    <div class="afl-k">Pending</div>
+    <div class="afl-v big" style="color:var(--amber)">{{ counts.pending }}</div>
+  </div>
+  <div class="afl-card">
+    <div class="afl-k">Verified</div>
+    <div class="afl-v big" style="color:var(--green)">{{ counts.verified }}</div>
+  </div>
+  <div class="afl-card">
+    <div class="afl-k">Rejected</div>
+    <div class="afl-v big" style="color:var(--red)">{{ counts.rejected }}</div>
+  </div>
+</div>
+
+<div class="tabs" style="margin-bottom:.8rem">
+  <a class="{{ 'active' if status_filter == 'pending' }}"   href="?status=pending">Pending ({{ counts.pending }})</a>
+  <a class="{{ 'active' if status_filter == 'verified' }}"  href="?status=verified">Verified ({{ counts.verified }})</a>
+  <a class="{{ 'active' if status_filter == 'rejected' }}"  href="?status=rejected">Rejected ({{ counts.rejected }})</a>
+  <a class="{{ 'active' if status_filter == 'suspended' }}" href="?status=suspended">Suspended ({{ counts.suspended }})</a>
+  <a class="{{ 'active' if status_filter == 'all' }}"       href="?status=all">All ({{ counts.all }})</a>
+</div>
+
+<div class="afl-card">
+  <p style="color:var(--muted);font-size:.85rem;margin-top:0">
+    {{ total }} companies · page {{ page }} of {{ pages or 1 }}
+  </p>
+
+  <table class="afl-table">
+    <tr>
+      <th>Name</th>
+      <th>Jurisdiction</th>
+      <th>Registration #</th>
+      <th>Industry</th>
+      <th>Users</th>
+      <th>Status</th>
+      <th>Created</th>
+      <th></th>
+    </tr>
+    {% for c in rows %}
+    <tr>
+      <td>
+        <a href="/admin/companies/{{ c.id }}" style="color:var(--accent);text-decoration:none;font-weight:600">{{ c.name }}</a>
+        {% if c.lei_code %}<div style="color:var(--muted);font-size:.72rem">LEI {{ c.lei_code }}</div>{% endif %}
+      </td>
+      <td>{{ c.jurisdiction or '—' }}</td>
+      <td>{{ c.registration_number or '—' }}</td>
+      <td>{{ c.industry or '—' }}</td>
+      <td>{{ c.user_count }}</td>
+      <td><span class="afl-status {% if c.status == 'verified' %}confirmed{% elif c.status == 'pending' %}staged{% else %}failed{% endif %}">{{ c.status }}</span></td>
+      <td>{{ c.created_at.strftime('%Y-%m-%d') if c.created_at else '—' }}</td>
+      <td><a class="afl-link" href="/admin/companies/{{ c.id }}">Review →</a></td>
+    </tr>
+    {% endfor %}
+    {% if not rows %}
+    <tr><td colspan="8" class="afl-empty">No companies in this state</td></tr>
+    {% endif %}
+  </table>
+
+  {% if pages > 1 %}
+  <div style="display:flex;gap:.4rem;margin:1rem 0;flex-wrap:wrap">
+    {% if page > 1 %}<a class="afl-pill" href="?status={{ status_filter }}&page={{ page-1 }}">← prev</a>{% endif %}
+    {% for p in range(1, pages + 1) %}
+      {% if p == page %}
+        <a class="afl-pill" style="background:var(--accent);color:#fff">{{ p }}</a>
+      {% elif p <= 3 or p >= pages - 2 or (p >= page - 2 and p <= page + 2) %}
+        <a class="afl-pill" href="?status={{ status_filter }}&page={{ p }}">{{ p }}</a>
+      {% elif p == 4 and page > 5 %}<span style="color:var(--muted)">…</span>{% endif %}
+    {% endfor %}
+    {% if page < pages %}<a class="afl-pill" href="?status={{ status_filter }}&page={{ page+1 }}">next →</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

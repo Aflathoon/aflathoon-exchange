@@ -269,3 +269,126 @@ def balance():
         'btc_equiv': btc_equiv,
         'boost_pct': 11.1,   # keep the visual parity; wire to real metric later
     })
+
+
+# ------------------------------------------------------------------ companies
+@admin_bp.route('/companies')
+@admin_required
+def companies_page():
+    """List companies, filtered by status."""
+    from app.models.company import Company
+
+    status_filter = request.args.get('status', 'pending').strip() or 'pending'
+    page = max(1, int(request.args.get('page', '1')))
+    per_page = min(100, max(10, int(request.args.get('per_page', '25'))))
+
+    q = Company.query
+    if status_filter != 'all':
+        q = q.filter(Company.status == status_filter)
+    q = q.order_by(Company.created_at.desc())
+
+    total = q.count()
+    rows = q.offset((page - 1) * per_page).limit(per_page).all()
+
+    counts = {
+        'pending':   Company.query.filter_by(status='pending').count(),
+        'verified':  Company.query.filter_by(status='verified').count(),
+        'rejected':  Company.query.filter_by(status='rejected').count(),
+        'suspended': Company.query.filter_by(status='suspended').count(),
+        'all':       Company.query.count(),
+    }
+
+    return render_template(
+        'admin/companies.html',
+        rows=rows, page=page, per_page=per_page, total=total,
+        pages=(total + per_page - 1) // per_page,
+        status_filter=status_filter, counts=counts,
+    )
+
+
+@admin_bp.route('/companies/<int:cid>')
+@admin_required
+def company_detail(cid):
+    from app.models.company import Company
+    from app.models.user import User
+
+    company = Company.query.get_or_404(cid)
+    users = User.query.filter_by(company_id=cid).all()
+    return render_template('admin/company_detail.html', company=company, users=users)
+
+
+@admin_bp.route('/companies/<int:cid>/verify', methods=['POST'])
+@admin_required
+def company_verify(cid):
+    from app.models.company import Company
+    from app.models.user import User
+    from datetime import datetime
+
+    company = Company.query.get_or_404(cid)
+    company.status = 'verified'
+    company.verified_at = datetime.utcnow()
+    company.verified_by_id = current_user.id
+    company.rejection_reason = None
+
+    # Upgrade KYC for all users of this company
+    users = User.query.filter_by(company_id=cid).all()
+    for u in users:
+        u.kyc_status = 'verified'
+        u.kyc_tier = 2
+
+    db.session.commit()
+    flash(f"Company '{company.name}' verified. {len(users)} user(s) upgraded to KYC tier 2.")
+    return redirect(url_for('admin.company_detail', cid=cid))
+
+
+@admin_bp.route('/companies/<int:cid>/reject', methods=['POST'])
+@admin_required
+def company_reject(cid):
+    from app.models.company import Company
+    company = Company.query.get_or_404(cid)
+    reason = (request.form.get('reason') or '').strip() or 'Not specified'
+
+    company.status = 'rejected'
+    company.rejection_reason = reason
+    company.verified_at = None
+    company.verified_by_id = current_user.id
+
+    db.session.commit()
+    flash(f"Company '{company.name}' rejected.")
+    return redirect(url_for('admin.company_detail', cid=cid))
+
+
+@admin_bp.route('/companies/<int:cid>/suspend', methods=['POST'])
+@admin_required
+def company_suspend(cid):
+    from app.models.company import Company
+    company = Company.query.get_or_404(cid)
+    company.status = 'suspended'
+    db.session.commit()
+    flash(f"Company '{company.name}' suspended.")
+    return redirect(url_for('admin.company_detail', cid=cid))
+
+
+@admin_bp.route('/companies/<int:cid>/reinstate', methods=['POST'])
+@admin_required
+def company_reinstate(cid):
+    from app.models.company import Company
+    company = Company.query.get_or_404(cid)
+    company.status = 'pending'
+    company.rejection_reason = None
+    db.session.commit()
+    flash(f"Company '{company.name}' moved back to pending.")
+    return redirect(url_for('admin.company_detail', cid=cid))
+
+
+# ------------------------------------------------------------------ stats update
+@admin_bp.route('/api/company-stats')
+@admin_required
+def company_stats():
+    from app.models.company import Company
+    return jsonify({
+        'pending':  Company.query.filter_by(status='pending').count(),
+        'verified': Company.query.filter_by(status='verified').count(),
+        'rejected': Company.query.filter_by(status='rejected').count(),
+        'total':    Company.query.count(),
+    })

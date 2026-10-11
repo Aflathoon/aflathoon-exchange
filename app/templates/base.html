@@ -36,6 +36,7 @@
     <a href="/admin/blotter"     class="{{ 'active' if path.startswith('/admin/blotter') }}">   <span class="ico">☰</span> Blotter</a>
     <a href="/admin/positions"   class="{{ 'active' if path.startswith('/admin/positions') }}"> <span class="ico">↗</span> Positions</a>
     <a href="/admin/users"       class="{{ 'active' if path.startswith('/admin/users') }}">     <span class="ico">👥</span> Users</a>
+    <a href="/admin/companies"     class="{{ 'active' if path.startswith('/admin/companies') }}">   <span class="ico">🏢</span> Companies</a>
     {% endif %}
     <hr>
     {% if current_user.is_authenticated %}
