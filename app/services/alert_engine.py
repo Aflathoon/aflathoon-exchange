@@ -84,9 +84,13 @@ def _run_once():
 
 
 def _loop():
+    # Import here to avoid circular imports at module load
+    from app import create_app
+    app = create_app()
     while True:
         try:
-            _run_once()
+            with app.app_context():
+                _run_once()
         except Exception as e:
             print(f"[alert_engine] scan failed: {e}", flush=True)
         time.sleep(CHECK_INTERVAL)

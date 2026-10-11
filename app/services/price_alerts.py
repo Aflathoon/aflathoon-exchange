@@ -79,9 +79,12 @@ def _run_once():
 
 
 def _loop():
+    from app import create_app
+    app = create_app()
     while True:
         try:
-            _run_once()
+            with app.app_context():
+                _run_once()
         except Exception as e:
             print(f"[price_alerts] failed: {e}", flush=True)
         time.sleep(CHECK_INTERVAL)
