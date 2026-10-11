@@ -1,46 +1,107 @@
 {% extends "base.html" %}
 {% block title %}Users — Aflathoon{% endblock %}
+{% block search_placeholder %}Search users…{% endblock %}
 
 {% block content %}
-<h1 class="afl-page-title">Users</h1>
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem">
+  <h1 class="afl-page-title" style="margin:0">Users</h1>
+  <form method="post" action="/admin/users/send_verification_all" style="margin:0">
+    <button class="afl-btn secondary" style="padding:.5rem 1rem">
+      📧 Send verification to all unverified
+    </button>
+  </form>
+</div>
 
-<div class="tabs" style="margin-bottom:1rem">
+<div class="tabs" style="margin:1rem 0">
   <a href="/admin/">Overview</a>
   <a href="/admin/blotter">Blotter</a>
   <a href="/admin/positions">Positions</a>
   <a class="active" href="/admin/users">Users</a>
+  <a href="/admin/companies">Companies</a>
 </div>
 
 {% with messages = get_flashed_messages() %}
-  {% if messages %}{% for m in messages %}<div class="afl-card" style="border-left:3px solid var(--green)">{{ m }}</div>{% endfor %}{% endif %}
+  {% if messages %}{% for m in messages %}
+    <div class="afl-card" style="border-left:3px solid var(--green);padding:.7rem 1rem;margin-bottom:1rem">{{ m }}</div>
+  {% endfor %}{% endif %}
 {% endwith %}
 
 <div class="afl-card">
   <table class="afl-table">
-    <tr><th>ID</th><th>Username</th><th>Email</th><th>Admin</th><th>Active</th><th>KYC</th><th>Created</th><th>Actions</th></tr>
+    <tr>
+      <th>ID</th>
+      <th>Username</th>
+      <th>Email</th>
+      <th>Email&nbsp;Verified</th>
+      <th>Admin</th>
+      <th>Active</th>
+      <th>KYC</th>
+      <th>Created</th>
+      <th>Actions</th>
+    </tr>
     {% for u in users %}
     <tr>
       <td>{{ u.id }}</td>
-      <td>{{ u.username }}</td>
+      <td>
+        <strong>{{ u.username }}</strong>
+        {% if u.full_name %}<div style="color:var(--muted);font-size:.72rem">{{ u.full_name }}</div>{% endif %}
+      </td>
       <td>{{ u.email }}</td>
-      <td><span class="afl-status {{ 'confirmed' if u.is_admin else 'cancelled' }}">{{ 'yes' if u.is_admin else 'no' }}</span></td>
-      <td><span class="afl-status {{ 'confirmed' if u.is_active else 'cancelled' }}">{{ 'yes' if u.is_active else 'no' }}</span></td>
-      <td>{{ u.kyc_status }}</td>
+      <td>
+        {% if u.email_verified %}
+          <span class="afl-status confirmed" title="Verified {{ u.email_verified_at.strftime('%Y-%m-%d %H:%M') if u.email_verified_at else '' }}">verified</span>
+        {% else %}
+          <span class="afl-status failed">unverified</span>
+        {% endif %}
+      </td>
+      <td><span class="afl-status {{ 'confirmed' if u.is_admin else 'failed' }}">{{ 'yes' if u.is_admin else 'no' }}</span></td>
+      <td><span class="afl-status {{ 'confirmed' if u.is_active else 'failed' }}">{{ 'yes' if u.is_active else 'no' }}</span></td>
+      <td>
+        <span class="afl-status {% if u.kyc_status == 'verified' %}confirmed{% elif u.kyc_status == 'pending' %}staged{% else %}failed{% endif %}">
+          {{ u.kyc_status }}
+        </span>
+      </td>
       <td>{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '—' }}</td>
-      <td style="display:flex;gap:.4rem;flex-wrap:wrap">
-        <form method="post" action="/admin/users/{{ u.id }}/toggle_admin">
-          <button class="afl-icon-btn" style="width:auto;padding:.3rem .7rem">{{ 'Demote' if u.is_admin else 'Promote' }}</button>
-        </form>
-        <form method="post" action="/admin/users/{{ u.id }}/toggle_active">
-          <button class="afl-icon-btn" style="width:auto;padding:.3rem .7rem">{{ 'Deactivate' if u.is_active else 'Activate' }}</button>
-        </form>
-        <form method="post" action="/admin/users/{{ u.id }}/reset_password" style="display:flex;gap:.3rem">
-          <input name="new_password" placeholder="new pw" class="afl-icon-btn" style="width:130px;padding:.3rem .5rem" minlength="10">
-          <button class="afl-icon-btn" style="width:auto;padding:.3rem .7rem">Reset</button>
-        </form>
+      <td>
+        <div style="display:flex;gap:.35rem;flex-wrap:wrap;align-items:center">
+          {% if u.email_verified %}
+            <form method="post" action="/admin/users/{{ u.id }}/unverify_email" style="margin:0">
+              <button class="afl-btn secondary" style="padding:.3rem .7rem;font-size:.78rem" title="Mark email as unverified">Unverify</button>
+            </form>
+          {% else %}
+            <form method="post" action="/admin/users/{{ u.id }}/send_verification" style="margin:0">
+              <button class="afl-btn secondary" style="padding:.3rem .7rem;font-size:.78rem" title="Send a new verification email">Resend</button>
+            </form>
+            <form method="post" action="/admin/users/{{ u.id }}/verify_email" style="margin:0">
+              <button class="afl-btn" style="padding:.3rem .7rem;font-size:.78rem;background:var(--green)" title="Verify manually">Verify</button>
+            </form>
+          {% endif %}
+
+          <form method="post" action="/admin/users/{{ u.id }}/toggle_admin" style="margin:0">
+            <button class="afl-btn secondary" style="padding:.3rem .7rem;font-size:.78rem">{{ 'Demote' if u.is_admin else 'Promote' }}</button>
+          </form>
+          <form method="post" action="/admin/users/{{ u.id }}/toggle_active" style="margin:0">
+            <button class="afl-btn secondary" style="padding:.3rem .7rem;font-size:.78rem">{{ 'Deactivate' if u.is_active else 'Activate' }}</button>
+          </form>
+          <form method="post" action="/admin/users/{{ u.id }}/reset_password" style="display:flex;gap:.3rem;margin:0">
+            <input name="new_password" placeholder="new pw" class="afl-in" style="width:110px;padding:.3rem .5rem;font-size:.78rem" minlength="10">
+            <button class="afl-btn secondary" style="padding:.3rem .7rem;font-size:.78rem">Reset</button>
+          </form>
+        </div>
       </td>
     </tr>
     {% endfor %}
   </table>
+</div>
+
+<div class="afl-card" style="margin-top:1rem;border-left:3px solid var(--accent)">
+  <strong style="color:var(--text)">How email verification works</strong>
+  <ul style="color:var(--text-2);line-height:1.7;margin:.5rem 0 0 1.2rem;padding:0;font-size:.88rem">
+    <li>New users get a verification email automatically when they register.</li>
+    <li><strong>Unverified</strong> users can log in but see an amber banner and have limited features.</li>
+    <li><strong>Resend</strong> triggers a fresh link (48h expiry, single-use).</li>
+    <li><strong>Verify</strong> marks the email verified immediately (useful when SMTP isn't live yet).</li>
+    <li><strong>Unverify</strong> reverses the flag (for testing or compliance review).</li>
+  </ul>
 </div>
 {% endblock %}

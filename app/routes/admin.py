@@ -392,3 +392,72 @@ def company_stats():
         'rejected': Company.query.filter_by(status='rejected').count(),
         'total':    Company.query.count(),
     })
+
+
+# =============================================================================
+# Email verification admin actions
+# =============================================================================
+@admin_bp.route('/users/<int:uid>/verify_email', methods=['POST'])
+@admin_required
+def admin_verify_email(uid):
+    """Manually mark a user's email as verified (bypasses link)."""
+    from app.models.user import User
+    from datetime import datetime
+
+    u = User.query.get_or_404(uid)
+    u.email_verified = True
+    u.email_verified_at = datetime.utcnow()
+    db.session.commit()
+    flash(f"Email manually verified for {u.username}.")
+    return redirect(url_for('admin.users_page'))
+
+
+@admin_bp.route('/users/<int:uid>/send_verification', methods=['POST'])
+@admin_required
+def admin_send_verification(uid):
+    """Trigger a fresh verification email for a user."""
+    from app.models.user import User
+    from app.routes.auth import send_verification_email
+
+    u = User.query.get_or_404(uid)
+    if u.email_verified:
+        flash(f"{u.username}'s email is already verified.")
+    else:
+        try:
+            send_verification_email(u)
+            flash(f"Verification email sent to {u.email}.")
+        except Exception as e:
+            flash(f"Failed to send: {e}")
+    return redirect(url_for('admin.users_page'))
+
+
+@admin_bp.route('/users/<int:uid>/unverify_email', methods=['POST'])
+@admin_required
+def admin_unverify_email(uid):
+    """Mark email as NOT verified (for testing or compliance)."""
+    from app.models.user import User
+    u = User.query.get_or_404(uid)
+    u.email_verified = False
+    u.email_verified_at = None
+    db.session.commit()
+    flash(f"Email unverified for {u.username}.")
+    return redirect(url_for('admin.users_page'))
+
+
+@admin_bp.route('/users/send_verification_all', methods=['POST'])
+@admin_required
+def admin_send_verification_all():
+    """Send verification emails to every unverified user."""
+    from app.models.user import User
+    from app.routes.auth import send_verification_email
+
+    unverified = User.query.filter_by(email_verified=False).all()
+    sent = 0
+    for u in unverified:
+        try:
+            send_verification_email(u)
+            sent += 1
+        except Exception:
+            pass
+    flash(f"Sent verification emails to {sent} of {len(unverified)} unverified users.")
+    return redirect(url_for('admin.users_page'))
