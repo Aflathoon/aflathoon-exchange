@@ -279,7 +279,12 @@ id, title, doc_type, file_path, file_size, mime_type, version, issued_by, issued
 - Verify install script
 - KDE launchers installed
 - Git repo initialized and pushed
-
+- ✅ Enhanced user profiles (full_name, phone, address, DOB, country)
+- ✅ Company accounts + admin verification workflow
+- ✅ Email verification (console backend, SMTP-ready)
+- ✅ Password reset flow with single-use tokens
+- ✅ Two-factor authentication (TOTP + 10 backup codes)
+- ✅ Password reveal toggle on all password fields
 ---
 
 ## 10. What's NOT built yet
