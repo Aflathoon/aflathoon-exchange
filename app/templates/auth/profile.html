@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}My Profile — Aflathoon{% endblock %}
+{% block search_placeholder %}Profile settings{% endblock %}
+
+{% block content %}
+<h1 class="afl-page-title">My Profile</h1>
+
+{% with messages = get_flashed_messages() %}
+  {% if messages %}{% for m in messages %}<div class="afl-card" style="border-left:3px solid var(--green);padding:.7rem 1rem;margin-bottom:1rem">{{ m }}</div>{% endfor %}{% endif %}
+{% endwith %}
+
+<form method="post">
+  <div class="afl-row afl-row-split" style="max-width:1000px">
+
+    <div>
+      <div class="afl-card">
+        <h3 class="afl-h3">Personal details</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-top:.6rem">
+          <input name="full_name" placeholder="Full name" value="{{ user.full_name or '' }}" class="afl-in">
+          <input name="phone" placeholder="Phone" value="{{ user.phone or '' }}" class="afl-in">
+          <input name="date_of_birth" type="date" value="{{ user.date_of_birth.isoformat() if user.date_of_birth else '' }}" class="afl-in">
+          <input name="country" placeholder="Country" value="{{ user.country or '' }}" class="afl-in">
+          <input name="address_line1" placeholder="Address line 1" value="{{ user.address_line1 or '' }}" class="afl-in" style="grid-column:1/-1">
+          <input name="address_line2" placeholder="Address line 2" value="{{ user.address_line2 or '' }}" class="afl-in" style="grid-column:1/-1">
+          <input name="city" placeholder="City" value="{{ user.city or '' }}" class="afl-in">
+          <input name="postal_code" placeholder="Postal code" value="{{ user.postal_code or '' }}" class="afl-in">
+        </div>
+      </div>
+
+      {% if company %}
+      <div class="afl-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
+          <h3 class="afl-h3" style="margin:0">Company</h3>
+          <span class="afl-status {% if company.status == 'verified' %}confirmed{% elif company.status == 'pending' %}staged{% else %}failed{% endif %}">{{ company.status }}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-top:.6rem">
+          <input name="company_name" placeholder="Legal name" value="{{ company.name or '' }}" class="afl-in" style="grid-column:1/-1">
+          <input name="company_registration" placeholder="Registration #" value="{{ company.registration_number or '' }}" class="afl-in">
+          <input name="company_jurisdiction" placeholder="Jurisdiction" value="{{ company.jurisdiction or '' }}" class="afl-in">
+          <input name="company_tax_id" placeholder="Tax ID / VAT" value="{{ company.tax_id or '' }}" class="afl-in">
+          <input name="company_lei" placeholder="LEI" value="{{ company.lei_code or '' }}" class="afl-in">
+          <input name="company_industry" placeholder="Industry" value="{{ company.industry or '' }}" class="afl-in" style="grid-column:1/-1">
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="afl-card">
+        <button class="afl-btn">Save changes</button>
+        <a href="/auth/change-password" class="afl-btn secondary" style="text-decoration:none;display:inline-block;margin-left:.5rem">Change password</a>
+      </div>
+    </div>
+
+    <div>
+      <div class="afl-card">
+        <h3 class="afl-h3">Account</h3>
+        <div class="afl-k" style="margin-top:.6rem">Username</div>
+        <div style="color:var(--text);margin-bottom:.6rem">{{ user.username }}</div>
+        <div class="afl-k">Email</div>
+        <div style="color:var(--text);margin-bottom:.6rem">{{ user.email }}</div>
+        <div class="afl-k">Account type</div>
+        <div style="color:var(--text);margin-bottom:.6rem">{{ user.account_type }}</div>
+        <div class="afl-k">KYC status</div>
+        <div style="margin-bottom:.6rem">
+          <span class="afl-status {% if user.kyc_status == 'verified' %}confirmed{% elif user.kyc_status == 'pending' %}staged{% else %}failed{% endif %}">{{ user.kyc_status }}</span>
+        </div>
+        <div class="afl-k">Member since</div>
+        <div style="color:var(--text)">{{ user.created_at.strftime('%Y-%m-%d') if user.created_at else '—' }}</div>
+      </div>
+
+      {% if company %}
+      <div class="afl-card">
+        <h3 class="afl-h3">Company summary</h3>
+        <div class="afl-k" style="margin-top:.6rem">Users</div>
+        <div style="color:var(--text)">{{ company.user_count }}</div>
+        <div class="afl-k" style="margin-top:.6rem">Verified</div>
+        <div style="color:var(--text)">
+          {% if company.verified_at %}{{ company.verified_at.strftime('%Y-%m-%d') }}{% else %}Not yet{% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</form>
+{% endblock %}
