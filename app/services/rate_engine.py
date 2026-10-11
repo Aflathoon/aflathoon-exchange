@@ -29,6 +29,16 @@ FALLBACK_RATES = {
     'AUD': 1.52,
     'CAD': 1.36,
     'CNY': 7.24,
+    'INR': 83.10,
+    'AED': 3.6725,    # pegged to USD
+    'SAR': 3.75,      # pegged to USD
+    'KWD': 0.31,
+    'QAR': 3.64,
+    'TRY': 34.20,
+    'ZAR': 18.50,
+    'NGN': 1600.0,
+    'EGP': 48.50,
+    'KES': 129.0,
     'BTC': 0.000015,
     'ETH': 0.00025,
     'XAU': 0.00048,   # gold

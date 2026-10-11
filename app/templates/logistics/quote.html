@@ -1,54 +1,100 @@
 {% extends "base.html" %}
-{% block title %}Logistics — Aflathoon{% endblock %}
+{% block title %}Freight — Aflathoon{% endblock %}
 {% block search_placeholder %}Search routes, carriers…{% endblock %}
 
 {% block content %}
 <h1 class="afl-page-title">Freight Quote</h1>
 
-<div class="afl-card" style="max-width:720px">
-  <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+<div class="afl-card" style="max-width:820px">
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem">
     <input id="o" placeholder="Origin (ISO, e.g. AE)" value="AE" class="afl-in">
-    <span style="color:var(--muted)">→</span>
-    <input id="d" placeholder="Destination (ISO)" value="DE" class="afl-in">
+    <input id="d" placeholder="Destination (ISO, e.g. DE)" value="DE" class="afl-in">
+    <select id="cur" class="afl-in">
+      <option value="USD">USD — US Dollar</option>
+      <option value="EUR">EUR — Euro</option>
+      <option value="GBP">GBP — Pound Sterling</option>
+      <option value="AED">AED — UAE Dirham</option>
+      <option value="SAR">SAR — Saudi Riyal</option>
+      <option value="JPY">JPY — Japanese Yen</option>
+      <option value="CNY">CNY — Chinese Yuan</option>
+      <option value="INR">INR — Indian Rupee</option>
+    </select>
     <select id="m" class="afl-in">
-      <option value="sea">Sea</option><option value="air">Air</option>
-      <option value="road">Road</option><option value="rail">Rail</option>
+      <option value="sea">Sea</option>
+      <option value="air">Air</option>
+      <option value="road">Road</option>
+      <option value="rail">Rail</option>
       <option value="pipeline">Pipeline</option>
     </select>
-  </div>
-  <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.6rem;align-items:center">
+    <input id="cc" placeholder="Commodity class (general, heavy_oils…)" value="general" class="afl-in">
     <input id="w" type="number" value="10000" placeholder="Weight kg" class="afl-in">
     <input id="km" type="number" value="8000" placeholder="Distance km" class="afl-in">
+    <input id="note" placeholder="Notes (optional)" class="afl-in" style="grid-column:1/-1">
+  </div>
+  <div style="display:flex;gap:.5rem;margin-top:.8rem;flex-wrap:wrap">
     <button class="afl-btn" onclick="q()">Get quote</button>
+    <button id="bookBtn" class="afl-btn" style="background:var(--green)" onclick="book()" disabled>Book this shipment</button>
+    <a class="afl-btn secondary" href="/logistics/bookings" style="text-decoration:none">My bookings →</a>
   </div>
   <div id="out" style="margin-top:1rem"></div>
+  <div id="bookMsg" style="margin-top:1rem"></div>
 </div>
 
-<style>
-.afl-in{padding:.6rem;background:var(--input-bg);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:.95rem}
-.afl-btn{padding:.7rem 1.4rem;background:var(--accent);color:#fff;border:0;border-radius:8px;cursor:pointer;font-weight:600}
-.qrow{display:flex;justify-content:space-between;padding:.5rem 0;border-bottom:1px solid var(--border-2)}
-.qrow:last-child{border-bottom:0}
-.hl{color:var(--accent);font-weight:700}
-</style>
-
 <script>
-async function q(){
+let lastQuote = null;
+
+async function q() {
   const r = await fetch('/logistics/quote', {
-    method:'POST', headers:{'Content-Type':'application/json'},
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
-      origin:o.value, destination:d.value, mode:m.value,
-      weight_kg:parseFloat(w.value), distance_km:parseFloat(km.value)
+      origin: o.value, destination: d.value, mode: m.value,
+      weight_kg: parseFloat(w.value), distance_km: parseFloat(km.value),
     })
   });
   const j = await r.json();
+  const cur = document.getElementById('cur').value;
   document.getElementById('out').innerHTML = `
-    <div class="qrow"><span class="afl-k">Base freight</span><span>${j.base_freight.toFixed(2)}</span></div>
-    <div class="qrow"><span class="afl-k">Insurance</span><span>${j.insurance.toFixed(2)}</span></div>
-    <div class="qrow"><span class="afl-k">War-risk premium</span><span>${j.war_risk_premium.toFixed(2)}</span></div>
-    <div class="qrow"><span class="afl-k">Platform margin (6.5%)</span><span>${j.platform_margin_6_5.toFixed(2)}</span></div>
-    <div class="qrow"><span class="afl-k">Total</span><span class="hl">${j.total.toFixed(2)}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:.5rem 0;border-bottom:1px solid var(--border-2)"><span class="afl-k">Base freight</span><span>${j.base_freight.toFixed(2)} ${cur}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:.5rem 0;border-bottom:1px solid var(--border-2)"><span class="afl-k">Insurance</span><span>${j.insurance.toFixed(2)} ${cur}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:.5rem 0;border-bottom:1px solid var(--border-2)"><span class="afl-k">War-risk premium</span><span>${j.war_risk_premium.toFixed(2)} ${cur}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:.5rem 0;border-bottom:1px solid var(--border-2)"><span class="afl-k">Platform margin (6.5%)</span><span>${j.platform_margin_6_5.toFixed(2)} ${cur}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:.7rem 0;font-size:1.15rem;border-top:2px solid var(--border)"><span class="afl-k" style="font-size:1rem">Total</span><span style="color:var(--accent);font-weight:700">${j.total.toFixed(2)} ${cur}</span></div>
+    ${cur !== 'USD' ? `<div style="padding:.5rem 0;color:var(--muted);font-size:.78rem;text-align:right">≈ $${j.total_usd ? j.total_usd.toFixed(2) : j.total.toFixed(2)} USD at current rates</div>` : ''}
   `;
+  lastQuote = {
+    origin_country: o.value, destination_country: d.value, mode: m.value,
+    commodity_class: cc.value, weight_kg: parseFloat(w.value),
+    distance_km: parseFloat(km.value), notes: note.value,
+    base_freight: j.base_freight, insurance: j.insurance,
+    war_risk_premium: j.war_risk_premium, currency: cur,
+    total_usd: j.total_usd,
+  };
+  document.getElementById('bookBtn').disabled = false;
+  document.getElementById('bookMsg').innerHTML = '';
+}
+
+async function book() {
+  if (!lastQuote) return;
+  const btn = document.getElementById('bookBtn');
+  btn.disabled = true; btn.textContent = 'Booking…';
+  const r = await fetch('/logistics/book', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(lastQuote)
+  });
+  const j = await r.json();
+  const msg = document.getElementById('bookMsg');
+  if (j.error) {
+    msg.innerHTML = `<div style="background:rgba(239,68,68,.12);border-left:3px solid var(--red);padding:.7rem 1rem;border-radius:6px">⚠ ${j.error}</div>`;
+    btn.disabled = false; btn.textContent = 'Book this shipment';
+  } else {
+    msg.innerHTML = `<div style="background:rgba(34,197,94,.12);border-left:3px solid var(--green);padding:.7rem 1rem;border-radius:6px">
+      ✓ Booked <strong>${j.reference}</strong> — waybill <strong>${j.waybill}</strong><br>
+      ${j.total.toFixed(2)} ${j.currency} — <a href="${j.detail_url}" style="color:var(--accent)">view booking →</a>
+    </div>`;
+    setTimeout(() => location.href = j.detail_url, 1200);
+  }
 }
 </script>
 {% endblock %}

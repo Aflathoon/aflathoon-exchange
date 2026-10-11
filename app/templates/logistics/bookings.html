@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}My Shipments — Aflathoon{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem">
+  <h1 class="afl-page-title" style="margin:0">My Shipments</h1>
+  <a href="/logistics/" class="afl-btn secondary" style="text-decoration:none;padding:.5rem 1rem">+ New quote</a>
+</div>
+
+<div class="afl-row afl-row-3" style="margin:1rem 0">
+  <div class="afl-card"><div class="afl-k">Open</div><div class="afl-v big">{{ counts.open }}</div></div>
+  <div class="afl-card"><div class="afl-k">Delivered</div><div class="afl-v big" style="color:var(--green)">{{ counts.delivered }}</div></div>
+  <div class="afl-card"><div class="afl-k">Cancelled</div><div class="afl-v big" style="color:var(--red)">{{ counts.cancelled }}</div></div>
+</div>
+
+<div class="tabs" style="margin-bottom:.8rem">
+  <a class="{{ 'active' if not status_filter or status_filter == 'all' }}" href="?status=all">All ({{ counts.all }})</a>
+  <a class="{{ 'active' if status_filter == 'booked' }}" href="?status=booked">Booked</a>
+  <a class="{{ 'active' if status_filter == 'in_transit' }}" href="?status=in_transit">In transit</a>
+  <a class="{{ 'active' if status_filter == 'delivered' }}" href="?status=delivered">Delivered</a>
+</div>
+
+<div class="afl-card">
+  <table class="afl-table">
+    <tr><th>Reference</th><th>Route</th><th>Mode</th><th>Weight</th><th>Total</th><th>Status</th><th>Waybill</th><th></th></tr>
+    {% for s in rows %}
+    <tr>
+      <td><strong>{{ s.reference }}</strong></td>
+      <td>{{ s.route }}</td>
+      <td>{{ s.mode }}</td>
+      <td>{{ s.weight_kg }} kg</td>
+      <td>{{ s.total_cost }} {{ s.currency }}</td>
+      <td><span class="afl-status {{ s.status_badge_class() }}">{{ s.status.value }}</span></td>
+      <td style="font-size:.78rem;color:var(--muted)">{{ s.waybill_number or '—' }}</td>
+      <td><a class="afl-link" href="/logistics/bookings/{{ s.id }}">View →</a></td>
+    </tr>
+    {% endfor %}
+    {% if not rows %}<tr><td colspan="8" class="afl-empty">No shipments yet. <a href="/logistics/" style="color:var(--accent)">Get a quote</a> to start.</td></tr>{% endif %}
+  </table>
+</div>
+{% endblock %}

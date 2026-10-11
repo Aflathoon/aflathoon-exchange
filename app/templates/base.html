@@ -30,6 +30,7 @@
     <a href="/"                  class="{{ 'active' if path == '/' }}">        <span class="ico">⌂</span> Home</a>
     <a href="/exchange/"         class="{{ 'active' if path.startswith('/exchange') }}">   <span class="ico">⇄</span> Exchange</a>
     <a href="/logistics/"        class="{{ 'active' if path.startswith('/logistics') }}">  <span class="ico">🚚</span> Logistics</a>
+    <a href="/logistics/bookings" class="{{ 'active' if path.startswith('/logistics/bookings') }}"><span class="ico">📦</span> My Shipments</a>
     <a href="/compliance/"       class="{{ 'active' if path.startswith('/compliance') }}"> <span class="ico">🛡</span> Compliance</a>
     <a href="/kyc/" class="{{ 'active' if path.startswith('/kyc') }}"><span class="ico">🪪</span> KYC</a>
     {% if current_user.is_authenticated and current_user.is_admin %}
