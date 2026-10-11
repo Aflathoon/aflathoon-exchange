@@ -29,11 +29,11 @@
     <div class="afl-card">
       <h3 class="afl-h3">Cost breakdown</h3>
       <table class="afl-table">
-        <tr><td class="afl-k">Base freight</td><td>{{ s.base_freight }} {{ s.currency }}</td></tr>
-        <tr><td class="afl-k">Insurance</td><td>{{ s.insurance }} {{ s.currency }}</td></tr>
-        <tr><td class="afl-k">War-risk premium</td><td>{{ s.war_risk_premium }} {{ s.currency }}</td></tr>
-        <tr><td class="afl-k">Platform margin (6.5%)</td><td>{{ s.margin_amount }} {{ s.currency }}</td></tr>
-        <tr><td class="afl-k" style="font-weight:700">Total</td><td style="color:var(--accent);font-weight:700">{{ s.total_cost }} {{ s.currency }}</td></tr>
+        <tr><td class="afl-k">Base freight</td><td>{{ '%.2f'|format(s.base_freight or 0) }} {{ s.currency }}</td></tr>
+        <tr><td class="afl-k">Insurance</td><td>{{ '%.2f'|format(s.insurance or 0) }} {{ s.currency }}</td></tr>
+        <tr><td class="afl-k">War-risk premium</td><td>{{ '%.2f'|format(s.war_risk_premium or 0) }} {{ s.currency }}</td></tr>
+        <tr><td class="afl-k">Platform margin (6.5%)</td><td>{{ '%.2f'|format(s.margin_amount or 0) }} {{ s.currency }}</td></tr>
+        <tr><td class="afl-k" style="font-weight:700">Total</td><td style="color:var(--accent);font-weight:700">{{ '%.2f'|format(s.total_cost or 0) }} {{ s.currency }}</td></tr>
       </table>
       {% if s.transaction %}
       <p style="color:var(--muted);font-size:.8rem;margin-top:.6rem">

@@ -639,6 +639,15 @@ def assistant_run():
         except Exception as e:
             result = {'ok': False, 'message': f'Error: {e}'}
 
+    elif kind == 'notify_carriers_delayed':
+        # Send reminder emails about delayed shipments — for now, just logs and alerts
+        from app.models.shipment import Shipment, ShipmentStatus
+        stale = Shipment.query.filter(Shipment.status == ShipmentStatus.DELAYED).all()
+        result = {'ok': True,
+                  'message': f'{len(stale)} delayed shipment(s) flagged for follow-up.'}
+        audit.log('assistant.notify_carriers_delayed',
+                  summary=f'Flagged {len(stale)} delayed shipments for carrier follow-up')
+
     elif kind == 'list_company_ids':
         ids = payload.get('ids') or []
         result = {'ok': True, 'message': f'{len(ids)} companies pending. Open each from Companies tab.'}
@@ -798,3 +807,146 @@ def alerts_delete(aid):
     audit.log('alert.delete', summary=f"Deleted alert: {title[:60]}")
     flash('Alert deleted.')
     return redirect(url_for('admin.alerts_page'))
+
+
+# =============================================================================
+# Shipment fulfillment
+# =============================================================================
+@admin_bp.route('/shipments')
+@admin_required
+def shipments_page():
+    from app.models.shipment import Shipment, ShipmentStatus
+
+    status_filter = request.args.get('status', 'open').strip() or 'open'
+    page = max(1, int(request.args.get('page', '1')))
+    per_page = 30
+
+    q = Shipment.query
+    if status_filter == 'open':
+        q = q.filter(Shipment.status.in_([
+            ShipmentStatus.BOOKED, ShipmentStatus.PICKED_UP,
+            ShipmentStatus.IN_TRANSIT, ShipmentStatus.CUSTOMS,
+            ShipmentStatus.DELAYED,
+        ]))
+    elif status_filter != 'all':
+        try:
+            q = q.filter(Shipment.status == ShipmentStatus(status_filter))
+        except ValueError:
+            pass
+
+    q = q.order_by(Shipment.created_at.desc())
+    total = q.count()
+    rows = q.offset((page - 1) * per_page).limit(per_page).all()
+
+    counts = {
+        'open':       Shipment.query.filter(Shipment.status.in_([
+                          ShipmentStatus.BOOKED, ShipmentStatus.PICKED_UP,
+                          ShipmentStatus.IN_TRANSIT, ShipmentStatus.CUSTOMS,
+                          ShipmentStatus.DELAYED])).count(),
+        'booked':     Shipment.query.filter_by(status=ShipmentStatus.BOOKED).count(),
+        'in_transit': Shipment.query.filter_by(status=ShipmentStatus.IN_TRANSIT).count(),
+        'customs':    Shipment.query.filter_by(status=ShipmentStatus.CUSTOMS).count(),
+        'delivered':  Shipment.query.filter_by(status=ShipmentStatus.DELIVERED).count(),
+        'delayed':    Shipment.query.filter_by(status=ShipmentStatus.DELAYED).count(),
+        'cancelled':  Shipment.query.filter_by(status=ShipmentStatus.CANCELLED).count(),
+        'all':        Shipment.query.count(),
+    }
+    return render_template('admin/shipments.html',
+                           rows=rows, page=page, total=total,
+                           pages=(total + per_page - 1) // per_page,
+                           status_filter=status_filter, counts=counts)
+
+
+@admin_bp.route('/shipments/<int:sid>')
+@admin_required
+def shipment_detail(sid):
+    from app.models.shipment import Shipment
+    from app.models.shipping import Carrier
+    s = Shipment.query.get_or_404(sid)
+    carriers = Carrier.query.filter_by(is_active=True).order_by(Carrier.name).all()
+    return render_template('admin/shipment_detail.html', s=s, carriers=carriers)
+
+
+@admin_bp.route('/shipments/<int:sid>/advance', methods=['POST'])
+@admin_required
+def shipment_advance(sid):
+    from app.models.shipment import Shipment, ShipmentStatus
+    from datetime import datetime
+
+    s = Shipment.query.get_or_404(sid)
+    target = (request.form.get('target') or '').strip()
+    try:
+        new_status = ShipmentStatus(target)
+    except ValueError:
+        flash(f'Unknown status: {target}')
+        return redirect(url_for('admin.shipment_detail', sid=sid))
+
+    # Validate transition
+    allowed = {
+        'booked':     {'picked_up', 'delayed', 'cancelled'},
+        'picked_up':  {'in_transit', 'delayed', 'cancelled'},
+        'in_transit': {'customs', 'delivered', 'delayed'},
+        'customs':    {'delivered', 'delayed'},
+        'delayed':    {'in_transit', 'delivered', 'cancelled'},
+        'delivered':  set(),
+        'cancelled':  set(),
+        'quoted':     {'booked', 'cancelled'},
+    }
+    current = s.status.value if s.status else 'quoted'
+    if new_status.value not in allowed.get(current, set()):
+        flash(f'Cannot move from {current} to {new_status.value}')
+        return redirect(url_for('admin.shipment_detail', sid=sid))
+
+    before = s.status.value
+    s.status = new_status
+    ts = datetime.utcnow()
+    if new_status.value == 'picked_up':  s.picked_up_at = ts
+    elif new_status.value == 'in_transit': s.in_transit_at = ts
+    elif new_status.value == 'customs':   s.customs_at = ts
+    elif new_status.value == 'delivered': s.delivered_at = ts
+    elif new_status.value == 'delayed':   s.delayed_at = ts
+    elif new_status.value == 'cancelled': s.cancelled_at = ts
+
+    db.session.commit()
+    audit.log('shipment.advance', entity=s,
+              summary=f"{s.reference}: {before} -> {new_status.value}",
+              before={'status': before}, after={'status': new_status.value})
+    flash(f'{s.reference} moved to {new_status.value}.')
+    return redirect(url_for('admin.shipment_detail', sid=sid))
+
+
+@admin_bp.route('/shipments/<int:sid>/assign_carrier', methods=['POST'])
+@admin_required
+def shipment_assign_carrier(sid):
+    from app.models.shipment import Shipment
+    from app.models.shipping import Carrier
+    s = Shipment.query.get_or_404(sid)
+    cid = request.form.get('carrier_id')
+    if cid:
+        c = Carrier.query.get(int(cid))
+        if c:
+            before = s.carrier.name if s.carrier else None
+            s.carrier_id = c.id
+            db.session.commit()
+            audit.log('shipment.assign_carrier', entity=s,
+                      summary=f"{s.reference}: carrier {before} -> {c.name}")
+            flash(f'Carrier set to {c.name}.')
+    return redirect(url_for('admin.shipment_detail', sid=sid))
+
+
+@admin_bp.route('/shipments/<int:sid>/waybill', methods=['POST'])
+@admin_required
+def shipment_set_waybill(sid):
+    from app.models.shipment import Shipment
+    s = Shipment.query.get_or_404(sid)
+    wb = (request.form.get('waybill_number') or '').strip()
+    url = (request.form.get('tracking_url') or '').strip()
+    if wb:
+        s.waybill_number = wb
+    if url:
+        s.tracking_url = url
+    db.session.commit()
+    audit.log('shipment.set_waybill', entity=s,
+              summary=f"{s.reference}: waybill set to {wb}")
+    flash('Waybill updated.')
+    return redirect(url_for('admin.shipment_detail', sid=sid))

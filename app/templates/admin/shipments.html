@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Shipments — Aflathoon{% endblock %}
+{% block search_placeholder %}Search shipments…{% endblock %}
+
+{% block content %}
+<h1 class="afl-page-title">Shipments</h1>
+
+<div class="tabs" style="margin-bottom:1rem">
+  <a href="/admin/">Overview</a>
+  <a href="/admin/blotter">Blotter</a>
+  <a href="/admin/positions">Positions</a>
+  <a href="/admin/users">Users</a>
+  <a href="/admin/companies">Companies</a>
+  <a href="/admin/kyc">KYC</a>
+  <a href="/admin/alerts">Alerts</a>
+  <a class="active" href="/admin/shipments">Shipments</a>
+  <a href="/admin/audit">Audit</a>
+  <a href="/admin/assistant">Assistant</a>
+</div>
+
+<div class="tabs" style="margin-bottom:.8rem;flex-wrap:wrap">
+  <a class="{{ 'active' if status_filter == 'open' }}"       href="?status=open">Open ({{ counts.open }})</a>
+  <a class="{{ 'active' if status_filter == 'booked' }}"     href="?status=booked">Booked ({{ counts.booked }})</a>
+  <a class="{{ 'active' if status_filter == 'in_transit' }}" href="?status=in_transit">In transit ({{ counts.in_transit }})</a>
+  <a class="{{ 'active' if status_filter == 'customs' }}"    href="?status=customs">Customs ({{ counts.customs }})</a>
+  <a class="{{ 'active' if status_filter == 'delivered' }}"  href="?status=delivered">Delivered ({{ counts.delivered }})</a>
+  <a class="{{ 'active' if status_filter == 'delayed' }}"    href="?status=delayed">Delayed ({{ counts.delayed }})</a>
+  <a class="{{ 'active' if status_filter == 'cancelled' }}"  href="?status=cancelled">Cancelled ({{ counts.cancelled }})</a>
+  <a class="{{ 'active' if status_filter == 'all' }}"        href="?status=all">All ({{ counts.all }})</a>
+</div>
+
+<div class="afl-card">
+  <p style="color:var(--muted);font-size:.85rem">{{ total }} shipments · page {{ page }} of {{ pages or 1 }}</p>
+  <table class="afl-table">
+    <tr>
+      <th>Reference</th><th>Customer</th><th>Route</th><th>Mode</th>
+      <th>Carrier</th><th>Total</th><th>Status</th><th>Booked</th><th></th>
+    </tr>
+    {% for s in rows %}
+    <tr>
+      <td><strong>{{ s.reference }}</strong></td>
+      <td>{{ s.user.username if s.user else '—' }}</td>
+      <td>{{ s.route }}</td>
+      <td>{{ s.mode }}</td>
+      <td>{{ s.carrier.name if s.carrier else '—' }}</td>
+      <td>{{ '%.2f'|format(s.total_cost or 0) }} {{ s.currency }}</td>
+      <td><span class="afl-status {{ s.status_badge_class() }}">{{ s.status.value }}</span></td>
+      <td style="font-size:.78rem">{{ s.booked_at.strftime('%Y-%m-%d %H:%M') if s.booked_at else '—' }}</td>
+      <td><a class="afl-link" href="/admin/shipments/{{ s.id }}">Open →</a></td>
+    </tr>
+    {% endfor %}
+    {% if not rows %}<tr><td colspan="9" class="afl-empty">No shipments in this state</td></tr>{% endif %}
+  </table>
+</div>
+{% endblock %}

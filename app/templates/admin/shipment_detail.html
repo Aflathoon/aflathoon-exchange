@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}{{ s.reference }} — Admin{% endblock %}
+{% block content %}
+<a href="/admin/shipments" style="color:var(--accent);text-decoration:none;font-size:.85rem">← Shipments</a>
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-top:.3rem">
+  <h1 class="afl-page-title" style="margin:0">{{ s.reference }}</h1>
+  <span class="afl-status {{ s.status_badge_class() }}" style="font-size:.9rem;padding:.4rem .9rem">{{ s.status.value }}</span>
+</div>
+
+{% with messages = get_flashed_messages() %}
+  {% if messages %}{% for m in messages %}<div class="afl-card" style="border-left:3px solid var(--green);padding:.7rem 1rem;margin:1rem 0">{{ m }}</div>{% endfor %}{% endif %}
+{% endwith %}
+
+<div class="afl-row afl-row-split" style="max-width:1200px">
+
+  <div>
+    <div class="afl-card">
+      <h3 class="afl-h3">Route &amp; cargo</h3>
+      <table class="afl-table">
+        <tr><td class="afl-k">Customer</td><td>{{ s.user.username if s.user else '—' }}</td></tr>
+        <tr><td class="afl-k">Route</td><td>{{ s.route }}</td></tr>
+        <tr><td class="afl-k">Mode</td><td>{{ s.mode }}</td></tr>
+        <tr><td class="afl-k">Commodity</td><td>{{ s.commodity_class or '—' }}</td></tr>
+        <tr><td class="afl-k">Weight</td><td>{{ s.weight_kg }} kg</td></tr>
+        <tr><td class="afl-k">Distance</td><td>{{ s.distance_km }} km</td></tr>
+        <tr><td class="afl-k">Waybill</td><td>{{ s.waybill_number or '—' }}</td></tr>
+        {% if s.tracking_url %}
+        <tr><td class="afl-k">Tracking</td><td><a href="{{ s.tracking_url }}" target="_blank" rel="noopener" style="color:var(--accent)">{{ s.tracking_url }}</a></td></tr>
+        {% endif %}
+        {% if s.transaction %}
+        <tr><td class="afl-k">Ledger entry</td><td><code>{{ s.transaction.reference }}</code></td></tr>
+        {% endif %}
+        {% if s.notes %}
+        <tr><td class="afl-k">Customer notes</td><td>{{ s.notes }}</td></tr>
+        {% endif %}
+      </table>
+    </div>
+
+    <div class="afl-card">
+      <h3 class="afl-h3">Cost breakdown</h3>
+      <table class="afl-table">
+        <tr><td class="afl-k">Base freight</td><td>{{ '%.2f'|format(s.base_freight or 0) }} {{ s.currency }}</td></tr>
+        <tr><td class="afl-k">Insurance</td><td>{{ '%.2f'|format(s.insurance or 0) }} {{ s.currency }}</td></tr>
+        <tr><td class="afl-k">War-risk premium</td><td>{{ '%.2f'|format(s.war_risk_premium or 0) }} {{ s.currency }}</td></tr>
+        <tr><td class="afl-k">Platform margin</td><td>{{ '%.2f'|format(s.margin_amount or 0) }} {{ s.currency }}</td></tr>
+        <tr><td class="afl-k"><strong>Total</strong></td><td><strong style="color:var(--accent)">{{ '%.2f'|format(s.total_cost or 0) }} {{ s.currency }}</strong></td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div>
+    <div class="afl-card">
+      <h3 class="afl-h3">Advance status</h3>
+      {% set current = s.status.value %}
+      {% set transitions = {
+          'quoted':     [('booked', 'Confirm booking')],
+          'booked':     [('picked_up', 'Mark picked up'), ('delayed', 'Mark delayed'), ('cancelled', 'Cancel')],
+          'picked_up':  [('in_transit', 'Mark in transit'), ('delayed', 'Mark delayed'), ('cancelled', 'Cancel')],
+          'in_transit': [('customs', 'At customs'), ('delivered', 'Mark delivered'), ('delayed', 'Mark delayed')],
+          'customs':    [('delivered', 'Mark delivered'), ('delayed', 'Mark delayed')],
+          'delayed':    [('in_transit', 'Resume transit'), ('delivered', 'Mark delivered'), ('cancelled', 'Cancel')],
+          'delivered':  [],
+          'cancelled':  []
+      } %}
+      {% set opts = transitions.get(current, []) %}
+      {% if opts %}
+        {% for target, label in opts %}
+        <form method="post" action="/admin/shipments/{{ s.id }}/advance" style="margin-bottom:.4rem">
+          <input type="hidden" name="target" value="{{ target }}">
+          <button class="afl-btn" style="width:100%;{% if target in ('cancelled', 'delayed') %}background:var(--red){% elif target == 'delivered' %}background:var(--green){% endif %}">{{ label }}</button>
+        </form>
+        {% endfor %}
+      {% else %}
+        <p style="color:var(--muted);font-size:.85rem">No further transitions from this state.</p>
+      {% endif %}
+    </div>
+
+    <div class="afl-card">
+      <h3 class="afl-h3">Assign carrier</h3>
+      <form method="post" action="/admin/shipments/{{ s.id }}/assign_carrier">
+        <select name="carrier_id" class="afl-in" style="width:100%;margin-bottom:.4rem">
+          <option value="">— none —</option>
+          {% for c in carriers %}
+          <option value="{{ c.id }}" {% if s.carrier_id == c.id %}selected{% endif %}>{{ c.name }} ({{ c.mode }})</option>
+          {% endfor %}
+        </select>
+        <button class="afl-btn secondary" style="width:100%">Set carrier</button>
+      </form>
+    </div>
+
+    <div class="afl-card">
+      <h3 class="afl-h3">Waybill / tracking</h3>
+      <form method="post" action="/admin/shipments/{{ s.id }}/waybill">
+        <input name="waybill_number" value="{{ s.waybill_number or '' }}" placeholder="Waybill number" class="afl-in" style="width:100%;margin-bottom:.4rem">
+        <input name="tracking_url" value="{{ s.tracking_url or '' }}" placeholder="Tracking URL" class="afl-in" style="width:100%;margin-bottom:.4rem">
+        <button class="afl-btn secondary" style="width:100%">Update</button>
+      </form>
+    </div>
+
+    <div class="afl-card">
+      <h3 class="afl-h3">Timeline</h3>
+      {% macro row(label, ts) %}
+      <div style="display:flex;gap:.6rem;align-items:center;font-size:.82rem;margin-bottom:.3rem">
+        <div style="width:8px;height:8px;border-radius:50%;background:{{ 'var(--accent)' if ts else 'var(--border)' }};flex-shrink:0"></div>
+        <div style="flex:1;color:{{ 'var(--text)' if ts else 'var(--muted)' }}">{{ label }}</div>
+        <div style="color:var(--muted);font-size:.72rem">{{ ts.strftime('%Y-%m-%d %H:%M') if ts else '—' }}</div>
+      </div>
+      {% endmacro %}
+      {{ row('Booked', s.booked_at) }}
+      {{ row('Picked up', s.picked_up_at) }}
+      {{ row('In transit', s.in_transit_at) }}
+      {{ row('Customs', s.customs_at) }}
+      {{ row('Delivered', s.delivered_at) }}
+      {% if s.delayed_at %}{{ row('Delayed', s.delayed_at) }}{% endif %}
+      {% if s.cancelled_at %}{{ row('Cancelled', s.cancelled_at) }}{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

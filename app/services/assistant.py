@@ -238,6 +238,77 @@ def check_missing_backups():
     return []
 
 
+# --------------------------------------------------------------------- shipments
+def check_delayed_shipments():
+    """Shipments explicitly marked delayed for >24h."""
+    from app.models.shipment import Shipment, ShipmentStatus
+    from datetime import timedelta
+    cutoff = datetime.utcnow() - timedelta(hours=24)
+    stale = Shipment.query.filter(
+        Shipment.status == ShipmentStatus.DELAYED,
+        Shipment.delayed_at <= cutoff,
+    ).all()
+    if not stale:
+        return []
+    return [Finding(
+        key='shipments_delayed',
+        severity='critical',
+        title=f'{len(stale)} shipment(s) delayed >24h',
+        detail='Customers waiting. Review carrier status and update the waybill.',
+        action_label='Open shipments',
+        action_url='/admin/shipments?status=delayed',
+        count=len(stale),
+        entity_type='shipment',
+        action_kind='notify_carriers_delayed',
+        fix_label='📧 Flag for follow-up',
+        fix_confirm=f'Flag all {len(stale)} delayed shipment(s) for carrier follow-up?',
+    )]
+
+
+def check_stuck_shipments():
+    """Shipments stuck in customs or in_transit for >72h."""
+    from app.models.shipment import Shipment, ShipmentStatus
+    from datetime import timedelta
+    cutoff = datetime.utcnow() - timedelta(hours=72)
+    stale = Shipment.query.filter(
+        Shipment.status.in_([ShipmentStatus.IN_TRANSIT, ShipmentStatus.CUSTOMS]),
+        Shipment.created_at <= cutoff,
+    ).all()
+    if not stale:
+        return []
+    return [Finding(
+        key='shipments_stuck',
+        severity='warning',
+        title=f'{len(stale)} shipment(s) stuck >72h',
+        detail='Still in transit or customs after 3 days. Contact carrier.',
+        action_label='Review',
+        action_url='/admin/shipments?status=open',
+        count=len(stale),
+        entity_type='shipment',
+    )]
+
+
+def check_unassigned_shipments():
+    """Booked shipments with no carrier assigned."""
+    from app.models.shipment import Shipment, ShipmentStatus
+    orphans = Shipment.query.filter(
+        Shipment.status == ShipmentStatus.BOOKED,
+        Shipment.carrier_id.is_(None),
+    ).all()
+    if not orphans:
+        return []
+    return [Finding(
+        key='shipments_unassigned',
+        severity='warning',
+        title=f'{len(orphans)} booked shipment(s) without carrier',
+        detail='Assign a carrier to move them forward.',
+        action_label='Assign now',
+        action_url='/admin/shipments?status=booked',
+        count=len(orphans),
+        entity_type='shipment',
+    )]
+
+
 # --------------------------------------------------------------------- runner
 CHECKS: List[Callable] = [
     check_expiring_licenses,
@@ -248,6 +319,9 @@ CHECKS: List[Callable] = [
     check_large_transactions,
     check_stale_rate_source,
     check_missing_backups,
+    check_delayed_shipments,
+    check_stuck_shipments,
+    check_unassigned_shipments,
 ]
 
 
